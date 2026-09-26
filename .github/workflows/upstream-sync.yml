@@ -1,0 +1,74 @@
+name: Sync upstream skills
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch original repository
+        run: |
+          git remote add upstream https://github.com/emilkowalski/skills.git
+          git fetch upstream main --prune
+
+      - name: Stop when already current
+        id: current
+        shell: bash
+        run: |
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream and protect SmartBuild
+        if: steps.current.outputs.skip == 'false'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-ff --no-commit -X theirs upstream/main
+          git checkout HEAD -- \
+            skills/auto-dev \
+            SMARTBUILD.md VERSION CHANGELOG.md UPSTREAM.md \
+            scripts/ensure-smartbuild-readme.mjs \
+            scripts/install-smartbuild.ps1 \
+            scripts/validate-smartbuild.mjs \
+            .github/workflows/upstream-sync.yml \
+            .github/workflows/validate-smartbuild.yml
+          node scripts/ensure-smartbuild-readme.mjs
+          git add --all
+          git diff --cached --exit-code HEAD -- skills/auto-dev
+          node scripts/validate-smartbuild.mjs
+          git commit -m "Sync updates from emilkowalski/skills"
+
+      - name: Create review pull request
+        if: steps.current.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          branch="automation/upstream-sync-${GITHUB_RUN_ID}"
+          git branch -M "$branch"
+          git push origin "$branch"
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "Sync original skills updates" \
+            --body "自动吸收 emilkowalski/skills 的公共更新。智构开发系统目录和专属规则已保护，验证通过后请审查并合并。"

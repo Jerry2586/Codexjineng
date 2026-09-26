@@ -1,5 +1,5 @@
-<a href="https://animations.dev/">
-<img width="320" height="168" alt="opengraph-image-pwu6ef" src="https://github.com/user-attachments/assets/a405a37f-1a1a-4e8d-8fd6-269ee6d4fba6" />
+<a href="http://aiforui.dev/">
+<img width="360" height="202" alt="opengraph-image 2" src="https://github.com/user-attachments/assets/84fca9a6-0b2b-4927-8f48-f3ce194a5c47" />
 </a>
 
 # Skills For Designers and Engineers
@@ -18,7 +18,7 @@ So learn to code, design, or develop expertise in any other field. It’s extrem
 
 You can stay up to date with my skills here:
 
-[Sign Up To The Newsletter](https://animations.dev/skills)
+[Sign Up To The Newsletter](https://aiforui.dev/skills)
 
 ## Install
 
@@ -40,7 +40,9 @@ This is your shortcut to great interfaces. A shortcut to stand out in a sea of s
 
 ## Reference
 
-- **[auto-dev](./skills/auto-dev/SKILL.md)** — 公司级通用开发总智能体：从需求、线路图、分步开发和真实测试，一直到 Git、CI 与正式成品。
+<!-- smartbuild:start -->
+- **[智构开发系统 v1.0.0](./SMARTBUILD.md)** — 五阶段、双模式、分段式企业级 AI 开发系统。技能入口：[skills/auto-dev](./skills/auto-dev/SKILL.md)。
+<!-- smartbuild:end -->
 
 - **[emil-design-eng](./skills/emil-design-eng/SKILL.md)** — The main skill that consists of mostly animation, but also some design advice.
 - **[animate](./skills/animate/SKILL.md)** — Builds an animation from scratch while choosing the correct curve, duration, properties, and so on.
