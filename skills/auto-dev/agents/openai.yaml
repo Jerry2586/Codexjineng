@@ -1,6 +1,6 @@
 interface:
   display_name: "开发助手"
-  short_description: "从想法、开发和真实测试一直做到Git与可用成品。"
-  default_prompt: "使用 $auto-dev 理解并记录我的需求，复杂功能先给线路图和界面草图，再分步开发、真实测试，并按我选择的本地或正式版本路线交付。"
+  short_description: "专业智能体按需求表接力，从想法一直做到可用成品。"
+  default_prompt: "使用 $auto-dev 汇总并排队我的每回合需求，锁定当前任务，按阶段安排专业智能体接力开发、真实测试，并持续标明处于开发助手框架内。"
 policy:
   allow_implicit_invocation: true
