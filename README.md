@@ -40,6 +40,8 @@ This is your shortcut to great interfaces. A shortcut to stand out in a sea of s
 
 ## Reference
 
+- **[auto-dev](./skills/auto-dev/SKILL.md)** — 公司级通用开发总智能体：从需求、线路图、分步开发和真实测试，一直到 Git、CI 与正式成品。
+
 - **[emil-design-eng](./skills/emil-design-eng/SKILL.md)** — The main skill that consists of mostly animation, but also some design advice.
 - **[animate](./skills/animate/SKILL.md)** — Builds an animation from scratch while choosing the correct curve, duration, properties, and so on.
 - **[animate-expo](./skills/animate-expo/SKILL.md)** — The same bar, for React Native and Expo: gestures, sheets, haptics, screen transitions, and keeping motion off the JS thread.
