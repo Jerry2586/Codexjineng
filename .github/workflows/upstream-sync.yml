@@ -45,6 +45,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git merge --no-ff --no-commit -X theirs upstream/main
           git checkout HEAD -- \
+            README.md \
+            LICENSE \
             skills/auto-dev \
             SMARTBUILD.md VERSION CHANGELOG.md UPSTREAM.md \
             scripts/ensure-smartbuild-readme.mjs \
@@ -54,7 +56,7 @@ jobs:
             .github/workflows/validate-smartbuild.yml
           node scripts/ensure-smartbuild-readme.mjs
           git add --all
-          git diff --cached --exit-code HEAD -- skills/auto-dev
+          git diff --cached --exit-code HEAD -- README.md LICENSE skills/auto-dev
           node scripts/validate-smartbuild.mjs
           git commit -m "Sync updates from emilkowalski/skills"
 

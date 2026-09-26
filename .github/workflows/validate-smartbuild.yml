@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate SmartBuild v1.0.0
+      - name: Validate SmartBuild current version
         run: node scripts/validate-smartbuild.mjs
 
       - name: Check README marker is stable

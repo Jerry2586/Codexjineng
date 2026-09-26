@@ -1,4 +1,4 @@
-# 智构开发系统 v1.0.0
+# 智构开发系统 v1.0.1
 
 智构开发系统是一套“五阶段、双模式、分段式”的企业级 AI 开发智能体。
 
@@ -27,7 +27,19 @@
 
 ## 安装
 
-仓库中的技能目录是 `skills/auto-dev`。复制到本机智能体技能目录，或在 Windows PowerShell 中运行：
+安装你的技能包并选择需要的技能：
+
+```bash
+npx skills@latest add Jerry2586/Codexjineng
+```
+
+只安装“智构开发系统”：
+
+```bash
+npx skills@latest add Jerry2586/Codexjineng --skill auto-dev -g -y
+```
+
+从本地仓库安装时，也可以在 Windows PowerShell 中运行：
 
 ```powershell
 ./scripts/install-smartbuild.ps1
@@ -38,7 +50,7 @@
 本仓库来自 `emilkowalski/skills`。定时工作流会检查原作者更新并创建待审查的同步 Pull Request：
 
 - 原作者的公共技能更新可以吸收；
-- `skills/auto-dev`、版本文件和智构说明受保护；
+- `skills/auto-dev`、产品首页、许可证、版本文件和智构说明受保护；
 - 更新不会直接覆盖主分支；
 - 同步结果通过验证后再合并。
 
