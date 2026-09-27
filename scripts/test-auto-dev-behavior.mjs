@@ -70,6 +70,17 @@ const scenarios = [
     checks: [['没有完整面板', (text) => !text.includes('项目进度面板') && !text.includes('一级目录：')], ['说明已关闭', (text) => /已关闭|关闭.*展示/.test(text)], ['不取消任务', (text) => !/R001.{0,8}已取消/.test(text)]],
   },
   {
+    name: '重新开启恢复关闭前的队列和阶段',
+    context: '同一项目原处于第二部架构定界，R001 正在处理登录接口、R002 排队，锁为 R001，当前断点是接口测试；随后用户明确说关闭开发助手，仅隐藏面板。没有取消或暂停任务。',
+    request: '开发助手，看看刚才的队列，先不要修改代码。',
+    checks: [
+      ['第一版完整面板', hasFullPanel],
+      ['原阶段仍为第二部', (text) => /当前阶段：.*(?:第\s*2\s*阶段|②架构定界)/.test(text)],
+      ['两个原编号都保留', (text) => text.includes('R001') && text.includes('R002') && !text.includes('R003')],
+      ['仍锁 R001', (text) => text.includes('当前任务锁：R001')],
+      ['不自动开始修改', (text) => !/已经修改|已提交|开始修改代码/.test(text)],
+    ],
+  },  {
     name: '讨论口令不触发自身面板或暂停',
     context: '用户正在讨论 auto-dev 技能的设计，要求此讨论关闭开发助手面板。没有发出对当前任务的控制命令。',
     request: '这个技能里的“暂停”“开始执行”口令应该怎么写？先解释逻辑。',
@@ -445,6 +456,7 @@ const contractFixtures = new Map([
   ['开启后普通问答保持完整面板', fullPanel('接口是两部分交换请求和结果的约定。')],
   ['暂停执行保持开启面板和断点', fullPanel('R001 已暂停。当前断点：核对模块。恢复口令：继续执行。')],
   ['明确关闭仅关闭展示保留队列', '已关闭开发助手面板，保留原队列、阶段和断点。'],
+  ['重新开启恢复关闭前的队列和阶段', fullPanel('R002 排队，R001 原断点：接口测试。先不修改代码。')],
   ['讨论口令不触发自身面板或暂停', '“暂停”用于停止当前执行并记录断点，“开始执行”用于开始已确认的任务。现在只解释规则。'],
   ['环境查询只读且依据明确', '环境能否运行需要读取配置并实际检查；目前尚未核验，先按只读方式检查。'],
   ['单项完成不推动五部项目阶段', '当前阶段：第 2 阶段｜架构定界。R001 已完成；整体范围和模块基线仍待验收，暂不进入第三部。'],
@@ -545,6 +557,8 @@ function runHarnessSelfTest() {
   assert.equal(hasFullPanel(fullPanel().replace('一级目录：', '目录：')), false);
   assert.equal(hasFullPanel(fullPanel().replace('| 顺序 | 状态 | 编号 | 所属步骤 | 完成内容 |', '')), false);
   assert.equal(hasFullPanel(fullPanel() + '\n项目进度面板'), false);
+  assert.equal(hasFullPanel(fullPanel().replace('| 顺序 | 状态 | 编号 | 所属步骤 | 完成内容 |', '| 顺序 | 状态 | 编号 | 完成内容 | 所属步骤 |')), false);
+  assert.equal(hasFullPanel(fullPanel().replace('当前任务锁：R001', '任务锁已丢失')), false);
   console.log(`PASS 离线行为契约：${scenarios.length}/${scenarios.length}；事件解析、首回复顺序和异常输入检查通过。`);
 }
 
