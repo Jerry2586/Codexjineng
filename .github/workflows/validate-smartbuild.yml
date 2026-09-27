@@ -20,6 +20,12 @@ jobs:
       - name: Validate SmartBuild current version
         run: node scripts/validate-smartbuild.mjs
 
+      - name: Run SmartBuild functional policy tests
+        run: node scripts/test-auto-dev-functional.mjs
+
+      - name: Run SmartBuild offline behavior contracts
+        run: node scripts/test-auto-dev-behavior.mjs --self-test
+
       - name: Check README marker is stable
         run: |
           node scripts/ensure-smartbuild-readme.mjs

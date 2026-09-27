@@ -29,6 +29,8 @@
 - `scripts/ensure-smartbuild-readme.mjs`
 - `scripts/install-smartbuild.ps1`
 - `scripts/validate-smartbuild.mjs`
+- `scripts/test-auto-dev-functional.mjs`
+- `scripts/test-auto-dev-behavior.mjs`
 - `.github/workflows/upstream-sync.yml`
 - `.github/workflows/validate-smartbuild.yml`
 

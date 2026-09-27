@@ -10,6 +10,8 @@ const installEnd = '<!-- smartbuild-install:end -->';
 const installBlock = `${installStart}\n## 安装\n\n安装你的完整技能包，并选择需要的技能：\n\n\`\`\`bash\nnpx skills@latest add Jerry2586/Codexjineng\n\`\`\`\n\n只安装“智构开发系统”：\n\n\`\`\`bash\nnpx skills@latest add Jerry2586/Codexjineng --skill auto-dev -g -y\n\`\`\`\n${installEnd}`;
 
 let readme = fs.readFileSync(path, 'utf8');
+readme = readme.replace(/version-\d+\.\d+\.\d+-blue/g, `version-${version}-blue`);
+readme = readme.replace(/当前版本：\[`v\d+\.\d+\.\d+`\]/g, `当前版本：[\`v${version}\`]`);
 const pattern = new RegExp(`${start}[\\s\\S]*?${end}`, 'm');
 const installPattern = new RegExp(`${installStart}[\\s\\S]*?${installEnd}`, 'm');
 

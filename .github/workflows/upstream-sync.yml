@@ -52,12 +52,16 @@ jobs:
             scripts/ensure-smartbuild-readme.mjs \
             scripts/install-smartbuild.ps1 \
             scripts/validate-smartbuild.mjs \
+            scripts/test-auto-dev-functional.mjs \
+            scripts/test-auto-dev-behavior.mjs \
             .github/workflows/upstream-sync.yml \
             .github/workflows/validate-smartbuild.yml
           node scripts/ensure-smartbuild-readme.mjs
           git add --all
           git diff --cached --exit-code HEAD -- README.md LICENSE skills/auto-dev
           node scripts/validate-smartbuild.mjs
+          node scripts/test-auto-dev-functional.mjs
+          node scripts/test-auto-dev-behavior.mjs --self-test
           git commit -m "Sync updates from emilkowalski/skills"
 
       - name: Create review pull request
