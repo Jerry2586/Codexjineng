@@ -16,6 +16,7 @@ const requiredFiles = [
   'skills/auto-dev/references/personal-workbench.md',
   'skills/auto-dev/references/decision-and-stage-gates.md',
   'skills/auto-dev/references/project-ledger.md',
+  'skills/auto-dev/references/command-center-panel.md',
   'skills/auto-dev/references/release-and-operations.md',
   'scripts/test-auto-dev-functional.mjs',
   'scripts/test-auto-dev-behavior.mjs',
@@ -31,6 +32,9 @@ if (!/^\d+\.\d+\.\d+$/.test(version)) failures.push(`VERSION 不是有效版本�
 
 const skill = fs.existsSync('skills/auto-dev/SKILL.md')
   ? fs.readFileSync('skills/auto-dev/SKILL.md', 'utf8')
+  : '';
+const commandCenter = fs.existsSync('skills/auto-dev/references/command-center-panel.md')
+  ? fs.readFileSync('skills/auto-dev/references/command-center-panel.md', 'utf8')
   : '';
 
 const requiredSkillText = [
@@ -53,8 +57,13 @@ const requiredSkillText = [
   '用户一次把明确需求说完整时，视为已经授权',
   '当前任务锁：R001',
   '## 五阶段开发骨架',
-  '一级目录：①构想定稿 → ②架构定界 → ③企业化改造 → ④接口清理与重构 → ⑤测试部署验收',
-  '| 顺序 | 状态 | 编号 | 所属步骤 | 完成内容 |',
+  '这五部的名称、顺序和阶段管理逻辑属于写死的运行骨架',
+  '## 智构开发指挥中心',
+  '| 运行信息 | 当前内容 |',
+  '### 全局五部进度',
+  '| 状态 | 编号 | 所属步骤 | 当前步骤 | 内容摘要 | 验证结果 |',
+  '### 当前焦点',
+  '不写死示例项目、编号、阶段或进度',
   '阶段一是自由创作和真实功能试制',
   '泥腿子版本盘点、拆分、迁移和补齐为正规军第一版',
   '### 真实性红线',
@@ -81,6 +90,25 @@ const requiredSkillText = [
 
 for (const text of requiredSkillText) {
   if (!skill.includes(text)) failures.push(`SKILL.md 缺少关键规则: ${text}`);
+}
+
+const requiredCommandCenterText = [
+  '# 智能体开发指挥中心面板合同',
+  '## 智构开发指挥中心',
+  '| 运行信息 | 当前内容 |',
+  '### 全局五部进度',
+  '### 本回合理解',
+  '| 状态 | 编号 | 所属步骤 | 当前步骤 | 内容摘要 | 验证结果 |',
+  '### 当前焦点',
+  '### 控制口令',
+  '`开发助手`',
+  '`关闭开发助手`',
+  '最近完成` 最多显示本轮刚完成的一条',
+  '不得猜测百分比',
+  'APPGOGCMS、R004、R005、R006',
+];
+for (const text of requiredCommandCenterText) {
+  if (!commandCenter.includes(text)) failures.push(`指挥中心合同缺少关键规则: ${text}`);
 }
 
 const readme = fs.existsSync('README.md') ? fs.readFileSync('README.md', 'utf8') : '';
