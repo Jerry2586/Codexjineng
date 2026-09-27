@@ -21,26 +21,22 @@ This is a read-only behavior simulation. Do not call tools and do not modify fil
 
 const fullPanel = (extra = '') => `【开发助手｜框架内执行】
 一级目录：①构想定稿 → ②架构定界 → ③企业化改造 → ④接口清理与重构 → ⑤测试部署验收
-当前阶段：第 2 阶段｜架构定界
-项目进度面板
-| 阶段 | 状态 | 判断依据 |
-|---|---|---|
-| ①构想定稿 | √ 已验收 | 已有用户确认记录 |
-| ②架构定界 | ● 当前 | 范围与模块基线待验收 |
-| ③企业化改造 | □ 未进入 | 等整体验收 |
-| ④接口清理与重构 | □ 未进入 | 等项目推进 |
-| ⑤测试部署验收 | □ 未进入 | 等项目推进 |
+当前阶段：第 2 阶段｜架构定界｜验证中
 任务面板
 | 顺序 | 状态 | 编号 | 所属步骤 | 完成内容 |
 |---|---|---|---|---|
 | 1 | ▶ 正在处理 | R001 | ②架构定界 | 整理工作台规则 |
-当前任务锁：R001
-下一步：核对规则。
+当前任务锁：R001｜总共分：2 步；当前：第 1/2 步
+负责智能体：开发助手｜下一步：核对规则。
 ${extra}`;
+const stages = '一级目录：①构想定稿 → ②架构定界 → ③企业化改造 → ④接口清理与重构 → ⑤测试部署验收';
 const hasFullPanel = (text) => text.startsWith('【开发助手｜框架内执行】')
-  && text.includes('当前阶段：') && text.includes('项目进度面板')
-  && ['①构想定稿', '②架构定界', '③企业化改造', '④接口清理与重构', '⑤测试部署验收'].every((stage) => text.slice(text.indexOf('项目进度面板'), text.indexOf('任务面板')).includes('| ' + stage + ' |'))
-  && text.includes('任务面板') && text.includes('当前任务锁：') && text.includes('下一步：');
+  && text.includes(stages) && text.indexOf(stages) < text.indexOf('当前阶段：')
+  && text.indexOf('当前阶段：') < text.indexOf('任务面板')
+  && text.includes('| 顺序 | 状态 | 编号 | 所属步骤 | 完成内容 |')
+  && /\|\s*\d+\s*\|[^\n]*R\d{3}/.test(text)
+  && text.includes('当前任务锁：') && text.includes('下一步：')
+  && !text.includes('项目进度面板');
 
 const scenarios = [
   {
@@ -56,7 +52,7 @@ const scenarios = [
     checks: [['完整面板', hasFullPanel], ['原锁保留', (text) => text.includes('当前任务锁：R001')]],
   },
   {
-    name: '开启后普通问答不隐藏上半部',
+    name: '开启后普通问答保持完整面板',
     context: '工作台已开启，项目第二部，任务锁 R001；用户没有关闭开发助手。',
     request: '接口一般是干什么的？先用大白话解释。',
     checks: [['完整面板', hasFullPanel], ['解释接口', (text) => /接口/.test(text)]],
@@ -417,13 +413,13 @@ const scenarios = [
       ['指出整体阶段缺口', (text) => /模块|边界|范围|迁移|整体|阶段.*未.*完成/.test(text)],
     ],
   },  {
-    name: '首次已有代码先显示待识别五行面板',
+    name: '首次已有代码先显示待识别紧凑面板',
     context: '第一次接手一个已有代码的项目，尚无可信阶段账本；还没有读取仓库，不能知道实际代码结构和验收证据。',
     request: '修复客户页面保存失败的问题，直接做。',
     checks: [
       ['先显示待识别', (text) => /当前阶段：待识别/.test(text)],
-      ['五行进度面板', (text) => ['①构想定稿', '②架构定界', '③企业化改造', '④接口清理与重构', '⑤测试部署验收'].every((stage) => new RegExp(`\\|\\s*${stage}\\s*\\|`).test(text))],
-      ['进度先于任务', (text) => text.indexOf('项目进度面板') > -1 && text.indexOf('项目进度面板') < text.indexOf('任务面板')],
+      ['固定五部目录', (text) => text.includes(stages)],
+      ['第一版五列任务表', hasFullPanel],
       ['准备读取代码', (text) => /读取|检查|核查|盘点/.test(text) && /代码|项目结构|仓库/.test(text)],
     ],
   },  {
@@ -446,7 +442,7 @@ const contractHeader = `【开发助手｜框架内执行】
 const contractFixtures = new Map([
   ['直接开启覆盖此前关闭即使讨论工具本身', fullPanel('本回合理解：修复工具规则并更新 Git。总共分：4 步；当前：第1/4步。')],
   ['开启后元讨论仍保持完整面板', fullPanel('漏面板是未保持会话展示状态；只解释，不改代码。')],
-  ['开启后普通问答不隐藏上半部', fullPanel('接口是两部分交换请求和结果的约定。')],
+  ['开启后普通问答保持完整面板', fullPanel('接口是两部分交换请求和结果的约定。')],
   ['暂停执行保持开启面板和断点', fullPanel('R001 已暂停。当前断点：核对模块。恢复口令：继续执行。')],
   ['明确关闭仅关闭展示保留队列', '已关闭开发助手面板，保留原队列、阶段和断点。'],
   ['讨论口令不触发自身面板或暂停', '“暂停”用于停止当前执行并记录断点，“开始执行”用于开始已确认的任务。现在只解释规则。'],
@@ -480,7 +476,7 @@ const contractFixtures = new Map([
   ['第二部新想法不自动回退第一部', `【开发助手｜框架内执行】\n一级目录：①构想定稿 → ②架构定界 → ③企业化改造 → ④接口清理与重构 → ⑤测试部署验收\n当前阶段：第 2 阶段｜架构定界\n任务面板\n| 1 | ▶ 正在处理 | R001 | ②架构定界 | 登录接口 |\n| 2 | □ 排队 | R002 | ②架构定界 | 客户备注 |`],
   ['第二部新增真实功能和接口后正规整理', `【开发助手｜框架内执行】\n一级目录：①构想定稿 → ②架构定界 → ③企业化改造 → ④接口清理与重构 → ⑤测试部署验收\n当前阶段：第 2 阶段｜架构定界\n任务面板\n| 顺序 | 状态 | 编号 | 所属步骤 | 完成内容 |\n| 1 | ▶ 正在处理 | R001 | ②架构定界 | 新增真实保存接口，联调验证后整理模块边界 |`],
   ['单项功能完成不改变项目第二部', `【开发助手｜框架内执行】\n一级目录：①构想定稿 → ②架构定界 → ③企业化改造 → ④接口清理与重构 → ⑤测试部署验收\n当前阶段：第 2 阶段｜架构定界\nR001 客户备注已完成；第二部整体模块边界和迁移仍需验收。\n任务面板：暂无活动任务。`],
-  ['首次已有代码先显示待识别五行面板', `【开发助手｜框架内执行】\n一级目录：①构想定稿 → ②架构定界 → ③企业化改造 → ④接口清理与重构 → ⑤测试部署验收\n当前阶段：待识别｜等待读取项目结构\n项目进度面板\n| 阶段 | 状态 | 判断依据 |\n| ①构想定稿 | ? 待识别 | 等待核查代码 |\n| ②架构定界 | ? 待识别 | 等待核查代码 |\n| ③企业化改造 | ? 待识别 | 等待核查代码 |\n| ④接口清理与重构 | ? 待识别 | 等待核查代码 |\n| ⑤测试部署验收 | ? 待识别 | 等待核查代码 |\n任务面板\n下一步：读取项目结构和代码。`],
+  ['首次已有代码先显示待识别紧凑面板', `【开发助手｜框架内执行】\n${stages}\n当前阶段：待识别｜等待读取项目结构\n任务面板\n| 顺序 | 状态 | 编号 | 所属步骤 | 完成内容 |\n| 1 | ▶ 正在处理 | R001 | 待识别 | 读取项目结构和代码 |\n当前任务锁：R001\n下一步：读取项目结构和代码。`],
   ['测试失败阻止正式发布', `${contractHeader}\n发布阻塞：测试失败2项，版本不一致，不能发布，先修复。`],
 ]);
 
@@ -546,7 +542,9 @@ function runHarnessSelfTest() {
     assertResponse(`${scenario.name}（离线契约）`, fixture, scenario.checks, { silent: true });
   }
   assert.throws(() => assertResponse('漏面板必须失败', '规则已经修复，继续处理。', [['完整面板', hasFullPanel]], { silent: true }));
-  assert.equal(hasFullPanel(fullPanel().replace('| ②架构定界 | ● 当前 | 范围与模块基线待验收 |', '')), false);
+  assert.equal(hasFullPanel(fullPanel().replace('一级目录：', '目录：')), false);
+  assert.equal(hasFullPanel(fullPanel().replace('| 顺序 | 状态 | 编号 | 所属步骤 | 完成内容 |', '')), false);
+  assert.equal(hasFullPanel(fullPanel() + '\n项目进度面板'), false);
   console.log(`PASS 离线行为契约：${scenarios.length}/${scenarios.length}；事件解析、首回复顺序和异常输入检查通过。`);
 }
 
@@ -641,7 +639,7 @@ http.createServer((request, response) => {
   const final = messages.at(-1) || '';
   assert.ok(events.some(isToolEvent), `${name}：没有真正读取代码`);
   assert.ok(result.stdout.includes('server.mjs'), `${name}：没有读取关键业务文件`);
-  assert.ok(final.includes('项目进度面板') && final.includes('| 阶段 | 状态 | 判断依据 |'), `${name}：没有五行进度面板\n${final}`);
+  assert.ok(hasFullPanel(final) || (final.includes(stages) && final.includes('当前阶段：') && final.includes('任务面板：暂无活动任务')), `${name}：没有第一版紧凑面板\n${final}`);
   assert.ok(/当前阶段：(?:\*\*)?第\s*1\s*阶段.*构想定稿/.test(final), `${name}：未根据尚未验收的试制代码判断第一部\n${final}`);
   assert.ok(/server\.mjs|POST \/notes|持久化|写入|代码结构/.test(final), `${name}：判断依据没有关联实际代码\n${final}`);
   assert.equal(fs.readFileSync(path.join(sourceDir, 'server.mjs'), 'utf8'), source, `${name}：只读查询改动了代码`);
