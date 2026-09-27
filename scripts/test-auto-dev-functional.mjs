@@ -19,6 +19,15 @@ test(
 );
 
 test(
+  '关闭退出执行且重新开启不继承旧任务',
+  includesAll('清空本会话活动队列、任务锁、续做断点、旧实施授权和运行阶段', '关闭不是隐藏面板，也不是暂停', '不自动继承关闭前的活动队列', '新的普通开发请求只处理本条明确授权范围')
+    && ledger.includes('旧账本不得自动恢复为活动任务')
+    && decision.includes('不自动恢复旧队列或重新开启工作台')
+    && metadata.includes('关闭退出执行并清空活动队列'),
+  '暂停保留，关闭清空，重新开启重新识别；已写代码与历史不删除。',
+);
+
+test(
   '意图优先且引用口令不自触发',
   skill.includes('references/decision-and-stage-gates.md')
     && stageModel.includes('逐项可核验标准')
