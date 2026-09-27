@@ -1,15 +1,8 @@
 import fs from 'node:fs';
-import path from 'node:path';
 
 const requiredFiles = [
-  'README.md',
-  'LICENSE',
-  'VERSION',
-  'CHANGELOG.md',
-  'SMARTBUILD.md',
-  'UPSTREAM.md',
-  'skills/auto-dev/SKILL.md',
-  'skills/auto-dev/agents/openai.yaml',
+  'README.md', 'LICENSE', 'VERSION', 'CHANGELOG.md', 'SMARTBUILD.md', 'UPSTREAM.md',
+  'skills/auto-dev/SKILL.md', 'skills/auto-dev/agents/openai.yaml',
   'skills/auto-dev/references/five-stage-operating-model.md',
   'skills/auto-dev/references/implementation-and-testing.md',
   'skills/auto-dev/references/planning-and-boundaries.md',
@@ -17,157 +10,92 @@ const requiredFiles = [
   'skills/auto-dev/references/decision-and-stage-gates.md',
   'skills/auto-dev/references/project-ledger.md',
   'skills/auto-dev/references/command-center-panel.md',
+  'skills/auto-dev/references/global-bootstrap.md',
   'skills/auto-dev/references/release-and-operations.md',
-  'scripts/test-auto-dev-functional.mjs',
-  'scripts/test-auto-dev-behavior.mjs',
+  'skills/auto-dev/scripts/install-global-bootstrap.ps1',
+  'scripts/install-smartbuild.ps1', 'scripts/test-auto-dev-functional.mjs',
+  'scripts/test-auto-dev-behavior.mjs', 'scripts/validate-smartbuild.mjs',
 ];
-
 const failures = [];
-for (const file of requiredFiles) {
-  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) failures.push(`缺少文件: ${file}`);
-}
+const read = (file) => fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+for (const file of requiredFiles) if (!fs.existsSync(file) || !fs.statSync(file).isFile()) failures.push(`缺少文件: ${file}`);
 
-const version = fs.existsSync('VERSION') ? fs.readFileSync('VERSION', 'utf8').trim() : '';
+const version = read('VERSION').trim();
 if (!/^\d+\.\d+\.\d+$/.test(version)) failures.push(`VERSION 不是有效版本号: ${version || '空'}`);
+const skill = read('skills/auto-dev/SKILL.md');
+const panel = read('skills/auto-dev/references/command-center-panel.md');
+const bootstrap = read('skills/auto-dev/references/global-bootstrap.md');
+const installer = read('skills/auto-dev/scripts/install-global-bootstrap.ps1');
+const localInstaller = read('scripts/install-smartbuild.ps1');
+const metadata = read('skills/auto-dev/agents/openai.yaml');
+const behavior = read('scripts/test-auto-dev-behavior.mjs');
+const readme = read('README.md');
+const smartbuild = read('SMARTBUILD.md');
+const changelog = read('CHANGELOG.md');
+const workflow = read('.github/workflows/validate-smartbuild.yml');
+const requireText = (label, source, values) => values.forEach((value) => { if (!source.includes(value)) failures.push(`${label} 缺少关键规则: ${value}`); });
 
-const skill = fs.existsSync('skills/auto-dev/SKILL.md')
-  ? fs.readFileSync('skills/auto-dev/SKILL.md', 'utf8')
-  : '';
-const commandCenter = fs.existsSync('skills/auto-dev/references/command-center-panel.md')
-  ? fs.readFileSync('skills/auto-dev/references/command-center-panel.md', 'utf8')
-  : '';
-
-const requiredSkillText = [
-  '# 智构开发系统',
-  `版本：\`${version}\``,
-  '## 自动识别事项与统一任务队列（先判定）',
-  '## 开发请求第一回复协议（不得省略）',
-  '工作台开启时，提问、讨论开发助手自身、记录、暂停和开发回复都展示完整单面板',
-  '禁止只用一段文字复述需求后询问“需要我开始吗”',
-  '缺少其中任意一项都视为没有执行本技能',
-  '本技能的开发框架是强制外壳',
-  '先把输入转成简短、可核对的大白话文字需求',
-  '图片和附件只提供需求证据',
-  '## 精简需求记忆体',
+requireText('SKILL.md', skill, [
+  '# 智构开发系统', `版本：\`${version}\``,
+  '用户当前消息去除首尾空白后全文恰好是 `开发助手` 时',
+  '首行永远固定为 `【开发助手｜框架内执行】`',
+  '首次启动回复必须显示完整版',
+  '从第二条用户消息起全部使用',
+  '| 状态 | 编号 | 事项 | 下一步 |',
+  '登记完成后自动恢复当前任务断点',
   '到下一开发回合时自动从活动表删除',
-  '活动表里没有的旧聊天要求',
-  '## 最高优先级：开发回合入口闸门',
-  '在进行任何工具调用、子智能体派发、代码修改、测试或外部写入之前',
-  '没有就询问是否开始并停止，有就先完成以上展示再执行',
-  '用户一次把明确需求说完整时，视为已经授权',
-  '当前任务锁：R001',
-  '## 五阶段开发骨架',
-  '这五部的名称、顺序和阶段管理逻辑属于写死的运行骨架',
-  '## 智构开发指挥中心',
-  '| 运行信息 | 当前内容 |',
-  '### 全局五部进度',
-  '| 状态 | 编号 | 所属步骤 | 当前步骤 | 内容摘要 | 验证结果 |',
-  '### 当前焦点',
-  '不写死示例项目、编号、阶段或进度',
-  '阶段一是自由创作和真实功能试制',
-  '泥腿子版本盘点、拆分、迁移和补齐为正规军第一版',
-  '### 真实性红线',
-  '先测试、通过后部署、部署后验收',
-  '一个工具调用通道和一个代码修改执行者',
-  '用户不负责挑技能',
-  '## 统一控制口令',
-  '### 项目阶段推进',
-  '`转到第N阶段`',
-  '`进入大下一步`',
-  '1. 构想定稿',
-  '2. 架构定界',
-  '3. 企业化改造',
-  '4. 接口清理与重构',
-  '5. 测试部署验收',
-  '## 先区分问答和开发任务',
-  '## 开发任务强制分段',
-  '复杂逻辑的线路图澄清',
-  '当前任务锁',
-  '暂停口令',
-  '## 全功能测试与发布闸门',
-  '公开仓库安装测试和CI必须全部通过',
-];
-
-for (const text of requiredSkillText) {
-  if (!skill.includes(text)) failures.push(`SKILL.md 缺少关键规则: ${text}`);
-}
-
-const requiredCommandCenterText = [
+  '## 五阶段开发骨架', '## 开发任务强制分段', '### 真实性红线',
+  '先测试、通过后部署、部署后验收', '## 全功能测试与发布闸门',
+]);
+requireText('面板合同', panel, [
   '# 智能体开发指挥中心面板合同',
-  '## 智构开发指挥中心',
+  '## 首次启动完整版（强制且只显示一次）',
   '| 运行信息 | 当前内容 |',
-  '### 全局五部进度',
-  '### 本回合理解',
   '| 状态 | 编号 | 所属步骤 | 当前步骤 | 内容摘要 | 验证结果 |',
-  '### 当前焦点',
-  '### 控制口令',
-  '`开发助手`',
-  '`关闭开发助手`',
-  '最近完成` 最多显示本轮刚完成的一条',
-  '不得猜测百分比',
-  'APPGOGCMS、R004、R005、R006',
-];
-for (const text of requiredCommandCenterText) {
-  if (!commandCenter.includes(text)) failures.push(`指挥中心合同缺少关键规则: ${text}`);
-}
+  '### 当前焦点', '### 控制口令',
+  '## 后续精简面板（第二条回复起强制）',
+  '| 状态 | 编号 | 事项 | 下一步 |',
+  '控制：暂停一下 · 查看队列表 · 关闭开发助手',
+  '## 显示层与运行层边界（写死）',
+  '显示层相当于网站前端', '运行层相当于网站后端',
+  '## 需求排队与滚动接替（写死）',
+  '自动回到原任务断点继续',
+  '下一开发回合把该完成项移出短表',
+]);
+requireText('全局入口', bootstrap, [
+  'SMARTBUILD-GLOBAL-BOOTSTRAP:START', 'SMARTBUILD-GLOBAL-BOOTSTRAP:END',
+  '全文恰好是 `开发助手`', '第一行必须逐字为 `【开发助手｜框架内执行】`',
+  '首次启动完整版', '从第二条用户消息起', '精简面板', '不得静默退回普通回答',
+  '面板模板是写死的显示层，等同网站前端', '运行层，等同网站后端',
+]);
+requireText('全局安装器', installer, ['[switch]$Remove', 'SMARTBUILD-GLOBAL-BOOTSTRAP:START', 'Move-Item']);
+requireText('本地安装器', localInstaller, ["@('agents', 'references', 'scripts')", 'install-global-bootstrap.ps1', '& $bootstrapInstaller']);
+requireText('默认提示', metadata, ['allow_implicit_invocation: true', '首次启动完整版', '从第二条用户消息起持续显示精简面板', '自动恢复原任务断点']);
+requireText('行为测试', behavior, ['const hasFullPanel', 'const hasCompactPanel', '独立开发助手首次显示完整版', '开启后普通问答保持精简面板', '新需求排队且不抢当前任务']);
 
-const readme = fs.existsSync('README.md') ? fs.readFileSync('README.md', 'utf8') : '';
-if (!readme.includes('<!-- smartbuild:start -->') || !readme.includes('<!-- smartbuild:end -->')) {
-  failures.push('README 缺少智构保护标记');
-}
-if (!readme.includes('<!-- smartbuild-install:start -->') || !readme.includes('<!-- smartbuild-install:end -->')) {
-  failures.push('README 缺少安装入口保护标记');
-}
-if (!readme.includes('npx skills@latest add Jerry2586/Codexjineng')) {
-  failures.push('README 没有使用用户自己的安装包');
-}
-if (readme.includes('npx skills@latest add emilkowalski/skills')) {
-  failures.push('README 仍把原作者仓库作为默认安装包');
-}
-if (!readme.includes(`# 智构开发系统 SmartBuild`)) failures.push('README 没有以智构开发系统作为产品首页');
+if (!readme.includes('<!-- smartbuild:start -->') || !readme.includes('<!-- smartbuild:end -->')) failures.push('README 缺少智构保护标记');
+if (!readme.includes('<!-- smartbuild-install:start -->') || !readme.includes('<!-- smartbuild-install:end -->')) failures.push('README 缺少安装入口保护标记');
+if (!readme.includes('npx skills@latest add Jerry2586/Codexjineng')) failures.push('README 没有用户自己的安装命令');
+if (!readme.includes('install-global-bootstrap.ps1')) failures.push('README 缺少全局入口安装命令');
 if (!readme.includes(`version-${version}-blue`)) failures.push('README 版本徽章与 VERSION 不一致');
 if (!readme.includes(`智构开发系统 v${version}`)) failures.push('README 核心智能体版本与 VERSION 不一致');
 if (!readme.includes(`当前版本：[\`v${version}\`]`)) failures.push('README 当前版本与 VERSION 不一致');
-if (!readme.includes('emilkowalski/skills')) failures.push('README 缺少原作者仓库来源说明');
-if (!readme.includes('MIT License')) failures.push('README 缺少 MIT License 说明');
-if (!readme.includes('吸收上游不代表删除原作者署名')) failures.push('README 缺少原作者署名保护说明');
-
-const license = fs.existsSync('LICENSE') ? fs.readFileSync('LICENSE', 'utf8') : '';
-if (!license.includes('MIT License')) failures.push('LICENSE 不是预期的 MIT License');
-if (!license.includes('Copyright (c) 2026 Emil Kowalski')) failures.push('LICENSE 缺少原作者版权声明');
-
-const changelog = fs.existsSync('CHANGELOG.md') ? fs.readFileSync('CHANGELOG.md', 'utf8') : '';
+if (!smartbuild.includes(`# 智构开发系统 v${version}`)) failures.push('SMARTBUILD.md 版本与 VERSION 不一致');
+if (!smartbuild.includes('首次启动完整版') || !smartbuild.includes('精简面板')) failures.push('SMARTBUILD.md 未说明两段式面板');
 const changelogVersion = changelog.match(/^##\s+(\d+\.\d+\.\d+)\b/m)?.[1] ?? '';
 if (changelogVersion !== version) failures.push(`CHANGELOG.md 最新版本与 VERSION 不一致: ${changelogVersion || '空'}`);
-
-const smartbuild = fs.existsSync('SMARTBUILD.md') ? fs.readFileSync('SMARTBUILD.md', 'utf8') : '';
-if (!smartbuild.includes(`# 智构开发系统 v${version}`)) failures.push('SMARTBUILD.md 版本与 VERSION 不一致');
-if (!smartbuild.includes('npx skills@latest add Jerry2586/Codexjineng')) failures.push('SMARTBUILD.md 缺少用户安装包命令');
-
-const openaiYaml = fs.existsSync('skills/auto-dev/agents/openai.yaml')
-  ? fs.readFileSync('skills/auto-dev/agents/openai.yaml', 'utf8')
-  : '';
-if (!openaiYaml.includes('allow_implicit_invocation: true')) failures.push('auto-dev 没有启用自动发现');
-if (!openaiYaml.includes('自动识别普通问答、记录想法和明确开发动作')
-  || !openaiYaml.includes('普通问题先回答，下方可显示已有任务')) {
-  failures.push('auto-dev 默认提示没有强调开发入口闸门');
-}
-
-const workflow = fs.existsSync('.github/workflows/validate-smartbuild.yml')
-  ? fs.readFileSync('.github/workflows/validate-smartbuild.yml', 'utf8')
-  : '';
-if (!workflow.includes('node scripts/test-auto-dev-functional.mjs')) failures.push('CI 没有运行功能规则测试');
-if (!workflow.includes('node scripts/test-auto-dev-behavior.mjs --self-test')) failures.push('CI 没有运行离线行为契约');
+if (readme.includes('npx skills@latest add emilkowalski/skills')) failures.push('README 仍把上游作为默认安装包');
+if (!readme.includes('emilkowalski/skills') || !readme.includes('MIT License')) failures.push('README 缺少上游来源或许可证说明');
+const license = read('LICENSE');
+if (!license.includes('MIT License') || !license.includes('Copyright (c) 2026 Emil Kowalski')) failures.push('LICENSE 缺少 MIT 或上游版权声明');
+if (!workflow.includes('node scripts/validate-smartbuild.mjs') || !workflow.includes('node scripts/test-auto-dev-functional.mjs') || !workflow.includes('node scripts/test-auto-dev-behavior.mjs --self-test')) failures.push('CI 未覆盖全部本地校验');
 
 for (const file of requiredFiles) {
-  if (!fs.existsSync(file)) continue;
-  const data = fs.readFileSync(file, 'utf8');
+  const data = read(file);
   if (/\r(?!\n)/.test(data)) failures.push(`文件包含异常换行: ${file}`);
 }
-
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
 }
-
 console.log(`智构开发系统 v${version} 校验通过，共检查 ${requiredFiles.length} 个核心文件。`);

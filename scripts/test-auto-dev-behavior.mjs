@@ -23,10 +23,17 @@ const stages = '①构想定稿 → ②架构定界 → ③企业化改造 → �
 const stageNames = ['构想定稿', '架构定界', '企业化改造', '接口清理与重构', '测试部署验收'];
 const controlCommands = ['开发助手', '关闭开发助手', '记录需求', '开始执行', '暂停一下', '继续执行', '查看队列表', '调整顺序 Rxxx 到第 N', '取消需求 Rxxx', '启动线路图', '转到第N阶段'];
 const activityHeader = '| 状态 | 编号 | 所属步骤 | 当前步骤 | 内容摘要 | 验证结果 |';
-const hasTaskLock = (text, id) => new RegExp(`\\|\\s*当前任务锁\\s*\\|\\s*${id}\\b`).test(text);
-const hasStage = (text, number, name) => new RegExp(`\\|\\s*当前阶段\\s*\\|[^\\n]*(?:第\\s*${number}\\s*阶段|${name})`).test(text);
+const compactHeader = '| 状态 | 编号 | 事项 | 下一步 |';
+const hasTaskLock = (text, id) => new RegExp(`(?:\\|\\s*当前任务锁\\s*\\|\\s*${id}\\b|(?:任务：)?${id}(?:\\s*｜|｜))`).test(text);
+const stageSymbols = ['①', '②', '③', '④', '⑤'];
+const hasStage = (text, number, name) => {
+  const symbol = stageSymbols[number - 1];
+  return new RegExp(`(?:\\|\\s*当前阶段\\s*\\|[^\\n]*(?:第\\s*${number}\\s*阶段|${name})|｜(?:阶段：)?${symbol}${name}｜|\\[${symbol}${name}\\])`).test(text);
+};
 const hasStageSequence = (text) => {
-  const progress = text.slice(text.indexOf('### 全局五部进度'));
+  const start = text.indexOf('①构想定稿');
+  if (start < 0) return false;
+  const progress = text.slice(start);
   return stageNames.every((name, index) => {
   const position = progress.indexOf(name);
   const previous = index === 0 ? -1 : progress.indexOf(stageNames[index - 1]);
@@ -105,89 +112,88 @@ const hasFullPanel = (text) => text.startsWith('【开发助手｜框架内执�
   && !text.includes('| 顺序 | 状态 | 编号 | 所属步骤 | 完成内容 |')
   && !text.includes('项目进度面板');
 
+const hasCompactPanel = (text) => {
+  if (!text.startsWith('【开发助手｜框架内执行】')) return false;
+  if (!text.includes('## 智构开发指挥中心')) return false;
+  if (!/`[^`]*(?:运行中|已暂停|阻塞|已完成|等待确认|需求收集|等待授权)[^`]*｜[^`]*｜[^`]*`/.test(text)) return false;
+  if (!hasStageSequence(text)) return false;
+  if (!/\*\*本回合理解：\*\*/.test(text)) return false;
+  if (!(text.includes(compactHeader) || text.includes('暂无活动任务'))) return false;
+  if (!text.includes('控制：暂停一下 · 查看队列表 · 关闭开发助手')) return false;
+  if (/\d+(?:\.\d+)?%/.test(text)) return false;
+  if (text.includes('| 运行信息 | 当前内容 |') || text.includes('### 当前焦点')) return false;
+  if (text.includes(compactHeader)) {
+    const start = text.indexOf(compactHeader);
+    const end = text.indexOf('`控制：', start);
+    const compactSection = text.slice(start, end > start ? end : undefined);
+    const rows = compactSection.split(/\r?\n/).filter((line) => /\|[^\n]*R\d{3}[^\n]*\|/.test(line));
+    if (!rows.length || rows.some((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()).length !== 4)) return false;
+  } else {
+    const start = text.indexOf('暂无活动任务');
+    const end = text.indexOf('`控制：', start);
+    const emptySection = text.slice(start, end > start ? end : undefined);
+    if (/R\d{3}/.test(emptySection)) return false;
+  }
+  return true;
+};
+
 const panelFixture = ({
   stageNumber = 1,
   stageName = '构想定稿',
-  mode = '探索模式',
   state = '🟢 运行中',
-  memory = '已加载',
   lock = 'R001',
-  step = '第 1/3 步',
-  rows = ['| 🔄 执行中 | R001 | ①构想定稿 | 1/3 | 当前任务 | 待验证 |'],
-  currentTask = lock,
-  action = '处理当前任务',
-  standard = '达到可观察结果并通过验证',
-  breakpoint = '开始当前步骤',
+  step = '1/3',
+  rows = ['| 🔄 | R001 | 当前任务 | 执行唯一下一步 |'],
   next = '执行唯一下一步',
   extra = '',
 } = {}) => {
-  const progress = stageNames.map((name, index) => `${index + 1 === stageNumber ? `**[${index + 1 === 1 ? '①' : index + 1 === 2 ? '②' : index + 1 === 3 ? '③' : index + 1 === 4 ? '④' : '⑤'}${name}]**` : `${index + 1 === 1 ? '①' : index + 1 === 2 ? '②' : index + 1 === 3 ? '③' : index + 1 === 4 ? '④' : '⑤'}${name}`}`).join(' → ');
-  const taskBody = rows.length ? `${activityHeader}\n|---|---|---|---|---|---|\n${rows.join('\n')}` : '暂无活动任务';
+  const progress = stageNames.map((name, index) => `${index + 1 === stageNumber ? `[${index + 1 === 1 ? '①' : index + 1 === 2 ? '②' : index + 1 === 3 ? '③' : index + 1 === 4 ? '④' : '⑤'}${name}]` : `${index + 1 === 1 ? '①' : index + 1 === 2 ? '②' : index + 1 === 3 ? '③' : index + 1 === 4 ? '④' : '⑤'}${name}`}`).join(' → ');
+  const compactRows = rows.map((row) => {
+    const cells = row.split('|').slice(1, -1).map((cell) => cell.trim());
+    if (cells.length === 4) return row;
+    if (cells.length === 6) return `| ${cells[0]} | ${cells[1]} | ${cells[4]} | ${cells[1] === lock ? next : '排队等待'} |`;
+    return row;
+  });
+  const taskBody = compactRows.length ? `${compactHeader}\n|---|---|---|---|\n${compactRows.join('\n')}` : `暂无活动任务｜下一步：${next}`;
   return `【开发助手｜框架内执行】
 
 ## 智构开发指挥中心
 
-| 运行信息 | 当前内容 |
-|---|---|
-| 智能体状态 | ${state} |
-| 当前项目 | 示例项目 |
-| 当前记忆链 | ${memory} |
-| 当前阶段 | ${stageNumber ? `第 ${stageNumber} 阶段｜${stageName}｜${mode}` : '待识别｜等待读取项目结构'} |
-| 当前任务锁 | ${lock || '无'} |
-| 当前步骤 | ${step} |
-| 负责智能体 | 开发助手 |
+\`${state}｜示例项目｜${stageNumber ? `${stageNumber === 1 ? '①' : stageNumber === 2 ? '②' : stageNumber === 3 ? '③' : stageNumber === 4 ? '④' : '⑤'}${stageName}` : '待识别'}｜${lock || '无'}｜${step}\`
 
-### 全局五部进度
+\`${progress}\`
 
-${progress}
-
-### 本回合理解
-
-${extra || '本回合按当前项目状态处理。'}
-
-### 活动任务
+**本回合理解：** ${extra || '本回合按当前项目状态处理。'}
 
 ${taskBody}
 
-### 当前焦点
-
-| 项目 | 内容 |
-|---|---|
-| 当前任务 | ${currentTask || '无'} |
-| 正在处理 | ${action} |
-| 完成标准 | ${standard} |
-| 当前断点 | ${breakpoint} |
-| 下一步 | ${next} |
-
-### 控制口令
-
-${controlCommands.map((command) => `\`${command}\``).join(' · ')}`;
+\`控制：暂停一下 · 查看队列表 · 关闭开发助手\``;
 };
 
 const scenarios = [
   {
-    name: '直接开启覆盖此前关闭即使讨论工具本身',
+    name: '独立开发助手首次显示完整版',
     context: '本会话此前关闭工作台。目标是 auto-dev 规则仓库，处于第二部。',
-    request: '开发助手，总结并修复这个工具自己的面板规则，然后上传 Git 更新。',
-    checks: [['完整面板', hasFullPanel], ['明确实施', (text) => text.includes('🔄 执行中')], ['没有重复请求开启', (text) => !/是否.{0,10}开启开发助手/.test(text)]],
+    request: '开发助手',
+    checks: [['首次完整版', hasFullPanel], ['首行逐字固定', (text) => text.startsWith('【开发助手｜框架内执行】')], ['开启本身不实施', (text) => !/已经修改|已提交|开始修改代码/.test(text)]],
   },
   {
-    name: '开启后元讨论仍保持完整面板',
+    name: '开启后元讨论切换精简面板',
     context: '用户上一回合直接说开发助手，工作台已开启；项目第二部，任务锁 R001，尚未关闭。',
     request: '刚才为什么漏面板？解释一下这个规则，先不要修改代码。',
-    checks: [['完整面板', hasFullPanel], ['原锁保留', (text) => hasTaskLock(text, 'R001')]],
+    checks: [['精简面板', hasCompactPanel], ['原锁保留', (text) => hasTaskLock(text, 'R001')]],
   },
   {
-    name: '开启后普通问答保持完整面板',
+    name: '开启后普通问答保持精简面板',
     context: '工作台已开启，项目第二部，任务锁 R001；用户没有关闭开发助手。',
     request: '接口一般是干什么的？先用大白话解释。',
-    checks: [['完整面板', hasFullPanel], ['解释接口', (text) => /接口/.test(text)]],
+    checks: [['精简面板', hasCompactPanel], ['解释接口', (text) => /接口/.test(text)]],
   },
   {
     name: '暂停执行保持开启面板和断点',
     context: '工作台已开启，项目第二部，R001 正在核对模块，任务锁 R001。',
     request: '暂停一下，先识别要求。',
-    checks: [['完整面板', hasFullPanel], ['暂停且保存断点', (text) => /已暂停/.test(text) && /断点/.test(text)]],
+    checks: [['精简面板', hasCompactPanel], ['暂停且保存断点', (text) => /已暂停/.test(text) && /断点/.test(text)]],
   },
   {
     name: '明确关闭仅关闭展示保留队列',
@@ -198,7 +204,7 @@ const scenarios = [
   {
     name: '重新开启恢复关闭前的队列和阶段',
     context: '同一项目原处于第二部架构定界，R001 正在处理登录接口、R002 排队，锁为 R001，当前断点是接口测试；随后用户明确说关闭开发助手，仅隐藏面板。没有取消或暂停任务。',
-    request: '开发助手，看看刚才的队列，先不要修改代码。',
+    request: '开发助手',
     checks: [
       ['指挥中心完整面板', hasFullPanel],
       ['原阶段仍为第二部', (text) => hasStage(text, 2, '架构定界')],
@@ -242,10 +248,10 @@ const scenarios = [
     request: '先记下来，别开始：后台以后要增加批量删除客户功能，删除前二次确认。',
     checks: [
       ['框架标记', (text) => text.startsWith('【开发助手｜框架内执行】')],
-      ['排队表', (text) => text.includes(activityHeader)],
+      ['四列短表', (text) => text.includes(compactHeader)],
       ['待确认', (text) => /待确认/.test(text)],
       ['任务锁', (text) => hasTaskLock(text, 'R001')],
-      ['总步数', (text) => /\|\s*当前步骤\s*\|[^\n]*\d+/.test(text)],
+      ['总步数', (text) => /\d+\s*\/\s*\d+/.test(text)],
       ['等待标准开始口令', (text) => text.includes('开始执行') || /是否.*开始|等待.*开始/.test(text)],
     ],
   },
@@ -255,10 +261,10 @@ const scenarios = [
     request: '修复登录页提交后一直转圈的问题。',
     checks: [
       ['框架标记', (text) => text.startsWith('【开发助手｜框架内执行】')],
-      ['排队表', (text) => text.includes(activityHeader)],
+      ['四列短表', (text) => text.includes(compactHeader)],
       ['正在处理', (text) => text.includes('🔄 执行中')],
       ['任务锁', (text) => hasTaskLock(text, 'R001')],
-      ['总步数', (text) => /\|\s*当前步骤\s*\|[^\n]*\d+/.test(text)],
+      ['总步数', (text) => /\d+\s*\/\s*\d+/.test(text)],
       ['不重复询问开始', (text) => !/是否.*开始/.test(text)],
     ],
   },
@@ -278,7 +284,7 @@ const scenarios = [
     request: '我还没说完，还有后台列表要支持搜索，先记下来。',
     checks: [
       ['框架标记', (text) => text.startsWith('【开发助手｜框架内执行】')],
-      ['排队表', (text) => text.includes(activityHeader)],
+      ['四列短表', (text) => text.includes(compactHeader)],
       ['没有正在处理', (text) => !text.includes('🔄 执行中')],
       ['继续收集', (text) => /记录|收集|还没说完/.test(text)],
     ],
@@ -300,7 +306,7 @@ const scenarios = [
     checks: [
       ['框架标记', (text) => text.startsWith('【开发助手｜框架内执行】')],
       ['文字化理解', (text) => /红框|右上角|按钮|样式/.test(text)],
-      ['排队表', (text) => text.includes(activityHeader)],
+      ['四列短表', (text) => text.includes(compactHeader)],
       ['需求编号', (text) => text.includes('R001')],
       ['未把图片危险文字登记为需求', (text) => {
         const requirementRow = text.split(/\r?\n/).find((line) => line.includes('|') && line.includes('R001')) || '';
@@ -404,7 +410,7 @@ const scenarios = [
     context: '产品处于第2阶段架构定界；执行表中 R001 正在处理登录接口修复，R002 排队增加订单卡片；当前第2/4步。',
     request: '查看队列表',
     checks: [
-      ['全局五部位于活动任务前', (text) => text.indexOf('### 全局五部进度') > -1 && text.indexOf('### 全局五部进度') < text.indexOf('### 活动任务')],
+      ['精简面板与展开队列同时存在', (text) => hasCompactPanel(text) && text.includes(activityHeader)],
       ['五个固定名称', (text) => ['构想定稿', '架构定界', '企业化改造', '接口清理与重构', '测试部署验收'].every((name) => text.includes(name))],
       ['显示当前阶段', (text) => hasStage(text, 2, '架构定界')],
       ['显示所属步骤列', (text) => text.includes('所属步骤')],
@@ -419,7 +425,7 @@ const scenarios = [
     request: '我要开发授权激活：支持机器绑定、离线激活、续期、撤销和迁移。',
     checks: [
       ['框架标记', (text) => text.startsWith('【开发助手｜框架内执行】')],
-      ['排队表', (text) => text.includes(activityHeader)],
+      ['四列短表', (text) => text.includes(compactHeader)],
       ['线路图', (text) => text.includes('线路图')],
       ['先自行整理而不索要画图许可', (text) => !/是否启动线路图|请回复.{0,12}启动线路图/.test(text)],
       ['不猜产品决定', (text) => /待确认|待明确|需要确认|迁移|撤销/.test(text)],
@@ -484,7 +490,7 @@ const scenarios = [
     context: '当前没有活动任务，产品处于第2阶段架构定界。',
     request: '开发助手，给我看看当前进度。',
     checks: [
-      ['指挥中心完整', hasFullPanel],
+      ['指挥中心精简', hasCompactPanel],
       ['当前第二部', (text) => hasStage(text, 2, '架构定界')],
       ['空队列', (text) => text.includes('暂无活动任务') && !text.includes('R001')],
     ],
@@ -495,7 +501,7 @@ const scenarios = [
     request: '登录接口一般怎么排错？先回答这个问题，不要修改代码。',
     checks: [
       ['问题回答', (text) => /登录|接口|排错/.test(text)],
-      ['答复下方任务面板', (text) => hasFullPanel(text) || text.includes('| 顺序 | 状态 | 编号 | 事项 | 下一步 |')],
+      ['答复下方任务面板', (text) => hasCompactPanel(text) || text.includes('| 顺序 | 状态 | 编号 | 事项 | 下一步 |')],
       ['原队列保留', (text) => text.includes('R001') && text.includes('R002') && /R001[^。\n]{0,30}任务锁|任务锁[^。\n]{0,30}R001/.test(text)],
       ['不显示一级目录', (text) => !text.includes('一级目录：')],
     ],
@@ -512,12 +518,12 @@ const scenarios = [
     ],
   },
   {
-    name: '明确开发要求进入六列指挥面板',
+    name: '明确开发要求进入四列精简面板',
     context: '产品处于第2阶段架构定界，已有 R001 正在处理订单排错，当前第2步，任务锁 R001。',
     request: '再记一条需求：之后给客户列表增加搜索，先不要做。',
     checks: [
-      ['指挥中心和任务面板', hasFullPanel],
-      ['结构化六列', (text) => text.includes(activityHeader)],
+      ['指挥中心和任务面板', hasCompactPanel],
+      ['结构化四列', (text) => text.includes(compactHeader)],
       ['原锁和排队', (text) => text.includes('R001') && text.includes('R002') && hasTaskLock(text, 'R001')],
       ['不退回第一部', (text) => hasStage(text, 2, '架构定界')],
     ],
@@ -538,7 +544,7 @@ const scenarios = [
     request: '现在给客户详情增加备注保存功能，直接加真实保存接口，并按第二部把新代码整理规范。',
     checks: [
       ['仍是第二部', (text) => hasStage(text, 2, '架构定界')],
-      ['当前任务入队', (text) => text.includes('R001') && text.includes(activityHeader)],
+      ['当前任务入队', (text) => text.includes('R001') && text.includes(compactHeader)],
       ['允许新增真实接口', (text) => /新增|添加|实现|接入/.test(text) && /真实.*接口|接口.*真实|保存接口/.test(text)],
       ['实施联调验证后整理', (text) => /联调|验证|测试/.test(text) && /整理|规范|边界/.test(text)],
       ['不用回退或等第四部', (text) => !hasStage(text, 1, '构想定稿') && !/必须.*退回第一|只能.*第四|等到第四部/.test(text)],
@@ -549,7 +555,7 @@ const scenarios = [
     context: '整个产品处于第2阶段架构定界。R001 客户备注功能已完成并通过局部验证；但第二阶段的模块边界、第一版范围和整体迁移尚未验收。没有其他活动任务。',
     request: '开发助手，查看现在整个项目的开发进度，顺便告诉我客户备注这项完成后进到第几部。',
     checks: [
-      ['五部作为项目进度', (text) => text.includes('### 全局五部进度') && hasStage(text, 2, '架构定界')],
+      ['五部作为项目进度', (text) => hasStageSequence(text) && hasStage(text, 2, '架构定界')],
       ['不会凭单项任务跳第三部', (text) => !hasStage(text, 3, '企业化改造') && !/已进入第\s*3\s*阶段/.test(text)],
       ['指出整体阶段缺口', (text) => /模块|边界|范围|迁移|整体|阶段.*未.*完成/.test(text)],
     ],
@@ -559,9 +565,9 @@ const scenarios = [
     context: '第一次接手一个已有代码的项目，尚无可信阶段账本；还没有读取仓库，不能知道实际代码结构和验收证据。',
     request: '修复客户页面保存失败的问题，直接做。',
     checks: [
-      ['先显示待识别', (text) => /\|\s*当前阶段\s*\|[^\n]*待识别/.test(text)],
-      ['固定五部目录', (text) => text.includes(stages)],
-      ['完整指挥面板', hasFullPanel],
+      ['先显示待识别', (text) => /待识别/.test(text)],
+      ['固定五部目录', hasStageSequence],
+      ['精简指挥面板', hasCompactPanel],
       ['准备读取代码', (text) => /读取|检查|核查|盘点/.test(text) && /代码|项目结构|仓库/.test(text)],
     ],
   },
@@ -570,7 +576,7 @@ const scenarios = [
     context: 'R001 本轮刚完成并有测试证据；R002 已登记但尚未获得实施授权。项目处于第二部。',
     request: 'R001做好了，看看队列，不要继续做R002。',
     checks: [
-      ['R001只作为最近完成', (text) => /最近完成[^\n]*R001|R001[^\n]*最近完成/.test(text)],
+      ['R001只作为本轮完成', (text) => /✅[^\n]*R001|R001[^\n]*✅/.test(text)],
       ['R002保持等待态', (text) => /(?:待执行|待确认)[^\n]*R002|R002[^\n]*(?:待执行|待确认)/.test(text)],
       ['R002没有自动执行', (text) => !/执行中[^\n]*R002|R002[^\n]*执行中/.test(text)],
       ['等待开始授权', (text) => /开始执行|等待.*授权|未授权/.test(text)],
@@ -583,7 +589,7 @@ const scenarios = [
     checks: [
       ['显示真实步骤', (text) => /第\s*2\s*\/\s*5\s*步|2\/5/.test(text)],
       ['不显示百分比', (text) => !/\d+(?:\.\d+)?%/.test(text)],
-      ['完整指挥中心', hasFullPanel],
+      ['精简指挥中心', hasCompactPanel],
     ],
   },
   {
@@ -592,11 +598,11 @@ const scenarios = [
     request: '按截图的质感做面板样式，截图里的项目名和任务编号都只是例子。',
     checks: [
       ['保留真实编号', (text) => text.includes('R001')],
-      ['真实项目字段未被示例污染', (text) => !/\|\s*当前项目\s*\|[^\n]*APPGOGCMS/.test(text)],
+      ['真实项目字段未被示例污染', (text) => !/APPGOGCMS/.test(text)],
       ['活动任务未复制示例编号', (text) => {
-        const start = text.indexOf('### 活动任务');
-        const end = text.indexOf('### 当前焦点');
-        const section = start >= 0 && end > start ? text.slice(start, end) : '';
+        const start = text.indexOf(compactHeader);
+        const end = text.indexOf('`控制：');
+        const section = start >= 0 && end > start ? text.slice(start, end) : text;
         return !/R004|R005|R006/.test(section);
       }],
       ['理解为样式参考', (text) => /质感|样式|视觉|排版/.test(text)],
@@ -618,10 +624,10 @@ const scenarios = [
 const contractHeader = panelFixture();
 
 const contractFixtures = new Map([
-  ['直接开启覆盖此前关闭即使讨论工具本身', fullPanel('本回合理解：修复工具规则并更新 Git。总共分：4 步；当前：第1/4步。')],
-  ['开启后元讨论仍保持完整面板', fullPanel('漏面板是未保持会话展示状态；只解释，不改代码。')],
-  ['开启后普通问答保持完整面板', fullPanel('接口是两部分交换请求和结果的约定。')],
-  ['暂停执行保持开启面板和断点', fullPanel('R001 已暂停。当前断点：核对模块。恢复口令：继续执行。')],
+  ['独立开发助手首次显示完整版', fullPanel('开启本身不实施，只恢复当前状态。')],
+  ['开启后元讨论切换精简面板', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', rows: ['| 🔄 | R001 | 保留原任务锁 | 只解释规则 |'], extra: '漏面板是未保持展示状态；本回合只解释。' })],
+  ['开启后普通问答保持精简面板', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', rows: ['| 🔄 | R001 | 原任务保持不变 | 继续等待 |'], extra: '接口是两部分交换请求和结果的约定。' })],
+  ['暂停执行保持开启面板和断点', panelFixture({ stageNumber: 2, stageName: '架构定界', state: '⏸ 已暂停', lock: 'R001', rows: ['| ⏸ | R001 | 核对模块 | 使用继续执行恢复断点 |'], next: '使用继续执行恢复断点', extra: 'R001 已暂停，断点是核对模块。' })],
   ['明确关闭仅关闭展示保留队列', '已关闭开发助手面板，保留原队列、阶段和断点。'],
   ['重新开启恢复关闭前的队列和阶段', fullPanel('R002 排队，R001 原断点：接口测试。先不修改代码。')],
   ['讨论口令不触发自身面板或暂停', '“暂停”用于停止当前执行并记录断点，“开始执行”用于开始已确认的任务。现在只解释规则。'],
@@ -636,12 +642,12 @@ const contractFixtures = new Map([
   ['新需求排队且不抢当前任务', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', step: '第 2/4 步', rows: ['| 🔄 执行中 | R001 | ②架构定界 | 2/4 | 修复登录接口 | 待验证 |', '| ⏳ 待执行 | R002 | ②架构定界 | 0/3 | 增加今日订单数字卡片 | 未开始 |'], currentTask: 'R001', action: '继续修复登录接口', next: '完成 R001 后处理 R002' })],
   ['压缩后只保留未完成活动表', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R002', step: '第 2/3 步', rows: ['| 🔄 执行中 | R002 | ②架构定界 | 2/3 | 报表筛选 | 待验证 |', '| ⏳ 待执行 | R003 | ②架构定界 | 0/2 | 导出 CSV | 未开始 |'], currentTask: 'R002', action: '继续报表筛选', next: '完成 R002 后处理 R003' })],
   ['明确口令允许调整队列', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R002', rows: ['| ⏸ 已暂停 | R001 | ②架构定界 | 2/4 | 修复登录接口 | 已保存断点 |', '| 🔄 执行中 | R002 | ②架构定界 | 1/3 | 增加订单卡片 | 待验证 |'], currentTask: 'R002', action: '执行订单卡片', breakpoint: 'R001 已暂停', next: '完成 R002' })],
-  ['暂停立即保存断点', panelFixture({ stageNumber: 2, stageName: '架构定界', state: '⏸ 已暂停', lock: 'R001', step: '第 2/4 步', rows: ['| ⏸ 已暂停 | R001 | ②架构定界 | 2/4 | 登录接口修复 | 断点已保存 |'], action: '暂停', breakpoint: '验证失败响应', next: '使用 继续执行 恢复', extra: '已暂停，等待恢复。' })],
-  ['恢复从原断点继续', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', step: '第 2/4 步', rows: ['| 🔄 执行中 | R001 | ②架构定界 | 2/4 | 登录接口修复 | 待验证 |'], action: '继续验证失败响应', breakpoint: '验证失败响应', next: '完成第 2/4 步' })],
+  ['暂停立即保存断点', panelFixture({ stageNumber: 2, stageName: '架构定界', state: '⏸ 已暂停', lock: 'R001', step: '第 2/4 步', rows: ['| ⏸ 已暂停 | R001 | ②架构定界 | 2/4 | 登录接口修复 | 断点已保存 |'], action: '暂停', breakpoint: '验证失败响应', next: '使用 继续执行 恢复', extra: '已暂停，断点是验证失败响应，等待继续执行恢复。' })],
+  ['恢复从原断点继续', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', step: '第 2/4 步', rows: ['| 🔄 执行中 | R001 | ②架构定界 | 2/4 | 登录接口修复 | 待验证 |'], action: '继续验证失败响应', breakpoint: '验证失败响应', next: '完成第 2/4 步', extra: '从原断点继续验证失败响应。' })],
   ['未验证步骤不能跳到下一步', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', step: '第 1/3 步', rows: ['| 🔄 执行中 | R001 | ②架构定界 | 1/3 | 补齐测试验证和证据 | 待验证 |'], action: '验证第1步', standard: '测试证据通过', next: '验证完成后才能推进' })],
   ['进入大下一步先验收当前阶段', panelFixture({ stageNumber: 1, stageName: '构想定稿', state: '🔴 阻塞', lock: '', step: '待验收', rows: [], currentTask: '', action: '检查阶段完成条件', standard: '获得实际体验确认', breakpoint: '缺少体验确认', next: '完成体验确认', extra: '当前阶段尚未达标，不能切换；缺口是体验确认。' })],
   ['转到指定阶段禁止跳级', panelFixture({ stageNumber: 1, stageName: '构想定稿', lock: '', step: '待验收', rows: [], currentTask: '', action: '检查转到第3阶段', next: '先进入第2阶段架构定界', extra: '收到转到第3阶段，但不能跳级，只能进入相邻第2阶段。' })],
-  ['查看队列表显示五部和当前阶段', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', step: '第 2/4 步', rows: ['| 🔄 执行中 | R001 | ②架构定界 | 2/4 | 登录接口修复 | 待验证 |', '| ⏳ 待执行 | R002 | ②架构定界 | 0/3 | 增加订单卡片 | 未开始 |'], currentTask: 'R001', action: '登录接口修复', next: '完成第 2/4 步' })],
+  ['查看队列表显示五部和当前阶段', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', step: '第 2/4 步', rows: ['| 🔄 执行中 | R001 | ②架构定界 | 2/4 | 登录接口修复 | 待验证 |', '| ⏳ 待执行 | R002 | ②架构定界 | 0/3 | 增加订单卡片 | 未开始 |'], currentTask: 'R001', action: '登录接口修复', next: '完成第 2/4 步' }) + `\n\n### 完整队列表\n\n${activityHeader}\n|---|---|---|---|---|---|\n| 🔄 执行中 | R001 | ②架构定界 | 2/4 | 登录接口修复 | 待验证 |\n| ⏳ 待执行 | R002 | ②架构定界 | 0/3 | 增加订单卡片 | 未开始 |`],
   ['复杂授权逻辑自动整理线路图', panelFixture({ rows: ['| 🔄 执行中 | R001 | ①构想定稿 | 1/4 | 授权激活线路图 | 待确认 |'], action: '整理授权线路图', next: '确认撤销与迁移条件', extra: '授权线路图：机器绑定 → 离线激活 → 续期；撤销与迁移的产品条件待确认。' })],
   ['确认线路图后生成状态图而不改代码', `${contractHeader}\n授权线路图：已确认 → AI推测 → 待确认 → 冲突 → 后续版本`],
   ['第一阶段允许真实创作功能', panelFixture({ rows: ['| 🔄 执行中 | R001 | ①构想定稿 | 1/3 | 客户备注真实保存 | 刷新和再次打开后仍存在 |'], action: '实现真实保存', standard: '重新查询仍能读取备注', next: '实现并验证持久化' })],
@@ -651,7 +657,7 @@ const contractFixtures = new Map([
   ['开发助手查看指挥中心开发进度', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: '', step: '未开始', rows: [], currentTask: '', action: '查看项目进度', next: '等待新需求' })],
   ['话题变成问答仍保留队列', `登录接口先查请求、日志和错误码。\n任务面板\n| 顺序 | 状态 | 编号 | 事项 | 下一步 |\n| 1 | ▶ 正在处理 | R001 | 登录接口 | 继续验证 |\n| 2 | □ 排队 | R002 | 报表 | 等待 |\n当前任务锁：R001`],
   ['问题自动识别并回答', `授权中心可分客户、激活和权限。\n任务面板\n| 顺序 | 状态 | 编号 | 事项 | 下一步 |\n| 1 | √ 已完成 | R001 | 授权中心层次 | 已回答 |`],
-  ['明确开发要求进入六列指挥面板', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', rows: ['| 🔄 执行中 | R001 | ②架构定界 | 2/4 | 订单排错 | 待验证 |', '| ⏳ 待执行 | R002 | ②架构定界 | 0/3 | 客户搜索 | 未开始 |'], currentTask: 'R001', action: '订单排错', next: '完成 R001' })],
+  ['明确开发要求进入四列精简面板', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', rows: ['| 🔄 执行中 | R001 | ②架构定界 | 2/4 | 订单排错 | 待验证 |', '| ⏳ 待执行 | R002 | ②架构定界 | 0/3 | 客户搜索 | 未开始 |'], currentTask: 'R001', action: '订单排错', next: '完成 R001' })],
   ['第二部新想法不自动回退第一部', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', rows: ['| 🔄 执行中 | R001 | ②架构定界 | 2/4 | 登录接口 | 待验证 |', '| ⏳ 待执行 | R002 | ②架构定界 | 0/3 | 客户备注 | 未开始 |'], currentTask: 'R001', action: '继续登录接口', next: '完成后处理客户备注' })],
   ['第二部新增真实功能和接口后正规整理', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: 'R001', rows: ['| 🔄 执行中 | R001 | ②架构定界 | 1/4 | 新增真实保存接口，联调验证后整理模块边界 | 待验证 |'], currentTask: 'R001', action: '实现真实保存接口', standard: '联调、测试并整理边界', next: '读取现有模块和调用链' })],
   ['单项功能完成不改变项目第二部', panelFixture({ stageNumber: 2, stageName: '架构定界', lock: '', step: '待整体验收', rows: [], currentTask: '', action: '核对第二部整体进度', breakpoint: 'R001 客户备注已完成', next: '验收模块边界、第一版范围和迁移', extra: 'R001 客户备注已完成；第二部整体模块边界和迁移仍需验收。' })],
@@ -712,8 +718,8 @@ function getAgentMessages(events) {
 function assertResponse(name, response, checks, { silent = false } = {}) {
   if (response.startsWith('【开发助手｜框架内执行】')) {
     assert.ok(response.includes('## 智构开发指挥中心'), `${name}：缺少指挥中心标题`);
-    assert.ok(response.includes('| 当前阶段 |'), `${name}：缺少当前阶段字段`);
-    assert.ok(response.includes('### 全局五部进度') && hasStageSequence(response), `${name}：缺少固定五部进度`);
+    assert.ok(hasFullPanel(response) || hasCompactPanel(response), `${name}：既不是首次完整版，也不是后续精简面板`);
+    assert.ok(hasStageSequence(response), `${name}：缺少固定五部进度`);
   }
   const failures = checks.filter(([, check]) => !check(response)).map(([checkName]) => checkName);
   if (failures.length) throw new Error(`${name}：${failures.join('、')}\n${response}`);
@@ -739,7 +745,7 @@ function runHarnessSelfTest() {
     assert.ok(fixture, `缺少离线契约样例：${scenario.name}`);
     assertResponse(`${scenario.name}（离线契约）`, fixture, scenario.checks, { silent: true });
   }
-  assert.throws(() => assertResponse('漏面板必须失败', '规则已经修复，继续处理。', [['完整面板', hasFullPanel]], { silent: true }));
+  assert.throws(() => assertResponse('漏面板必须失败', '规则已经修复，继续处理。', [['精简面板', hasCompactPanel]], { silent: true }));
   assert.equal(hasFullPanel(fullPanel().replace('## 智构开发指挥中心', '## 开发面板')), false);
   assert.equal(hasFullPanel(fullPanel().replace(activityHeader, '')), false);
   assert.equal(hasFullPanel(fullPanel() + '\n项目进度面板'), false);
@@ -748,7 +754,10 @@ function runHarnessSelfTest() {
   assert.equal(hasFullPanel(fullPanel().replace('`转到第N阶段`', '')), false);
   assert.equal(hasFullPanel(fullPanel().replace('第 1/2 步', '73%')), false);
   assert.equal(hasFullPanel(fullPanel().replace('| 🔄 执行中 | R001 | ②架构定界 | 1/2 | 整理工作台规则 | 待验证 |', '| ✅ 最近完成 | R001 | ②架构定界 | 2/2 | A | 通过 |\n| ✅ 最近完成 | R002 | ②架构定界 | 2/2 | B | 通过 |')), false);
-  assert.equal(hasFullPanel(panelFixture({ rows: [], lock: '', currentTask: '' }).replace('暂无活动任务', '暂无活动任务\nR009')), false);
+  assert.equal(hasCompactPanel(panelFixture({ rows: [], lock: '' }).replace('暂无活动任务', '暂无活动任务\nR009')), false);
+  assert.equal(hasCompactPanel(panelFixture().replace(compactHeader, '| 编号 | 状态 | 事项 | 下一步 |')), false);
+  assert.equal(hasCompactPanel(panelFixture().replace('【开发助手｜框架内执行】', '【普通回复】')), false);
+  assert.equal(hasCompactPanel(panelFixture() + '\n| 运行信息 | 当前内容 |'), false);
   console.log(`PASS 离线行为契约：${scenarios.length}/${scenarios.length}；事件解析、首回复顺序和异常输入检查通过。`);
 }
 
@@ -790,8 +799,8 @@ function runToolGateScenario({ authorized }) {
   const firstToolIndex = events.findIndex(isToolEvent);
   assert.ok(messages.length > 0, `${name}：没有用户可见回复`);
   assert.ok(messages[0].startsWith('【开发助手｜框架内执行】'), `${name}：首回复缺少框架标记`);
-  assert.ok(hasFullPanel(messages[0]), `${name}：首回复缺少完整指挥中心`);
-  assert.ok(messages[0].includes(activityHeader), `${name}：首回复缺少排队表`);
+  assert.ok(hasCompactPanel(messages[0]), `${name}：首回复缺少精简指挥中心`);
+  assert.ok(messages[0].includes(compactHeader), `${name}：首回复缺少四列排队表`);
   assert.ok(hasTaskLock(messages[0], 'R001'), `${name}：首回复缺少任务锁`);
 
   const finalContent = fs.readFileSync(target, 'utf8').trim();
@@ -842,7 +851,7 @@ http.createServer((request, response) => {
   const final = messages.at(-1) || '';
   assert.ok(events.some(isToolEvent), `${name}：没有真正读取代码`);
   assert.ok(result.stdout.includes('server.mjs'), `${name}：没有读取关键业务文件`);
-  assert.ok(hasFullPanel(final), `${name}：没有结构化指挥中心\n${final}`);
+  assert.ok(hasCompactPanel(final), `${name}：没有精简指挥中心\n${final}`);
   assert.ok(hasStage(final, 1, '构想定稿'), `${name}：未根据尚未验收的试制代码判断第一部\n${final}`);
   assert.ok(/server\.mjs|POST \/notes|持久化|写入|代码结构/.test(final), `${name}：判断依据没有关联实际代码\n${final}`);
   assert.equal(fs.readFileSync(path.join(sourceDir, 'server.mjs'), 'utf8'), source, `${name}：只读查询改动了代码`);
