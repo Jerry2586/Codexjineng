@@ -405,6 +405,10 @@ test(
   '安装后应自动触发，并从UI默认提示强调关键规则。',
 );
 
+test('运行中新需求先登记再续做，纠正更新原任务', includesAll('在安全位置短暂停笔', '这是接收消息的短暂停笔', '当前功能的补充或纠正更新原 Rxxx') && decision.includes('原任务已暂停则保持暂停'), '区分独立追加、当前纠正和已暂停任务。');
+test('跨话题持久保存，查询不自动恢复', includesAll('话题转移，等待继续指令', '不能仅凭消息数量', '不能只靠聊天上下文', '账本写入失败须明确报告') && ledger.includes('工作区断点：') && ledger.includes('验证记录：') && decision.includes('汇报未完成项和断点，不自动恢复'), '记录项目队列及验证断点，明确暂放才暂停。');
+test('恢复前核对工作区，不混用项目或盲目重做', includesAll('先检查当前分支、工作区和相关文件', '不覆盖他人改动', '不同项目独立保存') && ledger.includes('外部变更先核对'), '明确继续后从有效断点恢复。');
+
 const failures = tests.filter(({ check }) => !check);
 for (const { name, check, detail } of tests) {
   console.log(`${check ? 'PASS' : 'FAIL'} ${name}：${detail}`);

@@ -492,6 +492,19 @@ const contractFixtures = new Map([
   ['测试失败阻止正式发布', `${contractHeader}\n发布阻塞：测试失败2项，版本不一致，不能发布，先修复。`],
 ]);
 
+const continuationCases = [
+  { name: '运行中登记新需求再续做', context: '工作台关闭。项目甲第二部，R001 登录正在执行，未暂停。', request: '再加退出登录记到队列，你先继续原登录。', checks: [['新增排队', t => /R002/.test(t) && /排队|排在.*(?:之后|后面)/.test(t)], ['登记后续做', t => /登记|记录/.test(t) && /R001/.test(t) && /继续|续做/.test(t)], ['不假报完成', t => !/已完成|已提交/.test(t)]], fixture: '已登记 R002 退出登录排队；继续 R001 原登录验证。' },
+  { name: '当前纠正更新原任务', context: '工作台关闭，R001 正在做邮箱登录。', request: '纠正 R001，改用手机号登录，不要邮箱。', checks: [['更新原任务', t => /R001/.test(t) && /更新|调整|修正|纠正/.test(t)], ['新要求和影响', t => /手机号/.test(t) && /影响|接口|数据|短信|密码/.test(t)], ['不另建任务', t => !/R002/.test(t)]], fixture: '更新 R001 为手机号登录，先检查数据和接口影响，再按新要求续做。' },
+  { name: '明确转去聊天保存账本等待', context: '工作台关闭。项目甲第二部，R001 登录失败响应未测试，R002 权限排队。', request: '这个项目先放着，先聊别的，记住未完成等我指令继续。', checks: [['持久记录', t => /账本|项目记录/.test(t)], ['暂停等待', t => /暂停/.test(t) && /等待|等你|明确说/.test(t)], ['保留断点与队列', t => /R001/.test(t) && /失败响应|未测试/.test(t) && /R002/.test(t)], ['不开面板', t => !/一级目录：/.test(t)]], fixture: '项目甲已暂停，等待继续指令。保存项目账本：R001 失败响应未测试，R002 权限排队。保存失败会说明，随后正常聊天。' },
+  { name: '提旧需求只查记录不恢复', context: '工作台关闭。已聊很多其他话题，项目甲账本中 R001 登录失败响应未测，R002 权限排队，已暂停。', request: '之前那个登录呢？', checks: [['原任务断点', t => /R001/.test(t) && /失败响应|未测/.test(t)], ['暂停等指令', t => /暂停/.test(t) && /等待|等你|你说/.test(t) && /继续/.test(t)], ['不开工', t => !/现在开始修改|已修改|已提交/.test(t)]], fixture: '项目甲记录中 R001 失败响应未测，R002 排队，仍已暂停，等你说继续做登录。' },
+  { name: '继续前核对工作区和断点', context: '工作台关闭。项目甲已暂停，R001 失败响应未测，R002 排队；其他人可能改了文件。', request: '继续做项目甲登录。', checks: [['核对改动', t => /分支|工作区/.test(t) && /文件|改动/.test(t)], ['原断点队列', t => /R001/.test(t) && /断点|失败响应/.test(t) && /R002/.test(t)], ['不假报检查通过', t => !/已检查通过|已验证通过|已提交/.test(t)]], fixture: '先读项目甲账本，核对分支、工作区和文件改动，再从 R001 失败响应断点续做，R002 保持排队。' },
+  { name: '暂停期间追加不恢复', context: '工作台关闭。项目甲已暂停，R001 登录，R002 权限排队。', request: '还有退出登录，也记上。', checks: [['新增编号', t => /R003/.test(t)], ['暂停等指令', t => /暂停/.test(t) && /等待|等你|恢复时请说/.test(t) && /继续/.test(t)], ['不自动续做', t => !/现在继续|已开始修改/.test(t)]], fixture: '已记录 R003 退出登录排队；R001 仍已暂停，R002 保留，等待明确继续。' },
+];
+for (const { fixture, ...scenario } of continuationCases) {
+  scenarios.push(scenario);
+  contractFixtures.set(scenario.name, fixture);
+}
+
 function runCodex({ cwd, prompt, sandbox = 'read-only', json = false, outputPath, skipGit = false }) {
   const args = ['-c', 'web_search="disabled"', '--sandbox', sandbox, '--ask-for-approval', 'never', '--cd', cwd, 'exec', '--ephemeral', '--color', 'never'];
   if (skipGit) args.push('--skip-git-repo-check');
@@ -546,6 +559,8 @@ function runHarnessSelfTest() {
   assert.equal(trace.findIndex((event) => event?.item?.type === 'agent_message'), 0);
   assert.throws(() => parseEvents('{broken json}'));
   assert.deepEqual(parseEvents('{"type":"turn.started"}\n'), [{ type: 'turn.started' }]);
+  assert.throws(() => assertResponse('旧需求查询不得开工', 'R001 失败响应未测，现在开始修改代码。', continuationCases[3].checks, { silent: true }));
+  assert.throws(() => assertResponse('暂停追加不得续做', 'R003 已记录，现在继续 R001。', continuationCases[5].checks, { silent: true }));
   assert.equal(contractFixtures.size, scenarios.length, '离线契约样例数量与真实场景数量不一致');
   assert.equal(new Set(scenarios.map(({ name }) => name)).size, scenarios.length, '行为场景名称重复');
   for (const scenario of scenarios) {
