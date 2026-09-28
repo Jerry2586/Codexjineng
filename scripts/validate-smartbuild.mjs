@@ -43,7 +43,9 @@ requireText('SKILL.md', skill, [
   '从第二条用户消息起全部使用',
   '| 状态 | 编号 | 事项 | 下一步 |',
   '登记完成后自动恢复当前任务断点',
-  '到下一开发回合时自动从活动表删除',
+  '### 消息回合与开发轮次不得混淆',
+  '一个开发轮次可以跨很多消息回合',
+  '新开发轮次开始时',
   '## 五阶段开发骨架', '## 开发任务强制分段', '### 真实性红线',
   '先测试、通过后部署、部署后验收', '## 全功能测试与发布闸门',
 ]);
@@ -58,20 +60,23 @@ requireText('面板合同', panel, [
   '控制：暂停一下 · 查看队列表 · 关闭开发助手',
   '## 显示层与运行层边界（写死）',
   '显示层相当于网站前端', '运行层相当于网站后端',
+  '## 消息回合与开发轮次（写死）',
+  '下一条用户消息、上下文压缩或智能体交接都不能把它删除',
   '## 需求排队与滚动接替（写死）',
   '自动回到原任务断点继续',
-  '下一开发回合把该完成项移出短表',
+  '新开发轮次开始时，上轮完成项整体归档并退出活动表',
 ]);
 requireText('全局入口', bootstrap, [
   'SMARTBUILD-GLOBAL-BOOTSTRAP:START', 'SMARTBUILD-GLOBAL-BOOTSTRAP:END',
   '全文恰好是 `开发助手`', '第一行必须逐字为 `【开发助手｜框架内执行】`',
   '首次启动完整版', '从第二条用户消息起', '精简面板', '不得静默退回普通回答',
   '面板模板是写死的显示层，等同网站前端', '运行层，等同网站后端',
+  '一条消息和一次回复只是消息回合', '当前轮次完成项不得在下一条消息时删除',
 ]);
 requireText('全局安装器', installer, ['[switch]$Remove', 'SMARTBUILD-GLOBAL-BOOTSTRAP:START', 'Move-Item']);
 requireText('本地安装器', localInstaller, ["@('agents', 'references', 'scripts')", 'install-global-bootstrap.ps1', '& $bootstrapInstaller']);
-requireText('默认提示', metadata, ['allow_implicit_invocation: true', '首次启动完整版', '从第二条用户消息起持续显示精简面板', '自动恢复原任务断点']);
-requireText('行为测试', behavior, ['const hasFullPanel', 'const hasCompactPanel', '独立开发助手首次显示完整版', '开启后普通问答保持精简面板', '新需求排队且不抢当前任务']);
+requireText('默认提示', metadata, ['allow_implicit_invocation: true', '首次启动完整版', '从第二条用户消息起持续显示精简面板', '自动恢复原任务断点', '严格区分消息回合和开发轮次']);
+requireText('行为测试', behavior, ['const hasFullPanel', 'const hasCompactPanel', '独立开发助手首次显示完整版', '开启后普通问答保持精简面板', '新需求排队且不抢当前任务', '同一开发轮次完成项不会因下一条消息消失']);
 
 if (!readme.includes('<!-- smartbuild:start -->') || !readme.includes('<!-- smartbuild:end -->')) failures.push('README 缺少智构保护标记');
 if (!readme.includes('<!-- smartbuild-install:start -->') || !readme.includes('<!-- smartbuild-install:end -->')) failures.push('README 缺少安装入口保护标记');

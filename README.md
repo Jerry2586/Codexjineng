@@ -1,6 +1,6 @@
 # 智构开发系统 SmartBuild
 
-[![version](https://img.shields.io/badge/version-1.0.3-blue)](./VERSION)
+[![version](https://img.shields.io/badge/version-1.0.4-blue)](./VERSION)
 [![Validate SmartBuild](https://github.com/Jerry2586/Codexjineng/actions/workflows/validate-smartbuild.yml/badge.svg)](https://github.com/Jerry2586/Codexjineng/actions/workflows/validate-smartbuild.yml)
 [![skills.sh](https://skills.sh/b/Jerry2586/Codexjineng)](https://skills.sh/Jerry2586/Codexjineng)
 
@@ -58,6 +58,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME\.agents\skills\auto-d
 
 队列、任务锁和断点跨话题保存；进入第二阶段后，新需求不能让流程自行退回第一阶段。任务是否已完成以真实测试和验收证据为准。
 
+一条聊天消息不是“一轮开发”。一轮开发是同一批需求从总结排队、分段修改、测试，到本轮约定的 Git、CI、Release、安装、部署或本地交付全部完成。一个轮次可以包含很多消息和很多 Rxxx；完成项在本轮内继续保留，只有整轮结束并开始下一轮时才归档退出活动列表。
+
 查看[智构开发指挥中心与字段说明](./SMARTBUILD.md#智构开发指挥中心)：首次完整版、后续精简版、动态字段、四列短表和六列展开表都属于固定合同。关闭仅隐藏持续面板，保留任务进度；再次开启先用完整版恢复原队列。
 
 [面板怎么读、里面怎么运行](./SMARTBUILD.md#面板怎么读里面怎么运行)用大白话说明每个位置、任务排队、阶段推进、暂停和关闭，并给出具体场景。
@@ -73,7 +75,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME\.agents\skills\auto-d
 - 普通问题和需求进入同一任务面板；纯寒暄直接回应，不制造假任务；
 - 开发需求自动总结、编号、排队并锁定当前任务；
 - 新消息默认不覆盖正在处理的旧任务；新增需求排队后自动恢复原任务，不要求再次说继续；
-- 当前任务完成只显示一轮，下一开发回合移出并由队首下一项接替；
+- 当前任务完成后由队首下一项接替；完成项保留在当前开发轮次，精简面板只折叠显示，下一开发轮次开始时才统一归档；
 - 复杂逻辑先自行整理线路图，只有无法判定产品取舍时才问用户；
 - 所有开发任务开始前必须说明总共分几步；
 - 一次执行一步，每一步完成后测试；
@@ -81,13 +83,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME\.agents\skills\auto-d
 - 用户不需要挑选技能；工作台根据需求、图片、技术、风险和环境自动选择最少且最合适的专业能力；
 - 默认一个聊天窗口、一个总控、一个任务锁、一个工具通道和一个代码修改执行者；429 或工具不支持时有限重试后熔断并串行降级；
 - 禁止假数值、随机统计、Mock 冒充正式接口、固定成功响应和未经执行的测试冒充完成；
-- 长对话使用精简活动需求表：未完成项保留，完成项下一回合移出，压缩后读取断点；已暂停的项目等待明确继续指令；
+- 长对话使用当前开发轮次表：保存本轮全部 Rxxx、完成状态、任务锁和断点；精简面板折叠旧完成项，整轮结束后再归档；已暂停的项目等待明确继续指令；
 - 正式版本统一版本号、Git、CI、成品和按授权部署。
 
 <!-- smartbuild:start -->
 ## 核心智能体
 
-- **[智构开发系统 v1.0.3](./SMARTBUILD.md)**：技能入口位于 [`skills/auto-dev`](./skills/auto-dev/SKILL.md)。
+- **[智构开发系统 v1.0.4](./SMARTBUILD.md)**：技能入口位于 [`skills/auto-dev`](./skills/auto-dev/SKILL.md)。
 <!-- smartbuild:end -->
 
 ## 吸收上游专业能力
@@ -112,7 +114,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME\.agents\skills\auto-d
 
 ## 版本与更新
 
-- 当前版本：[`v1.0.3`](./CHANGELOG.md)；
+- 当前版本：[`v1.0.4`](./CHANGELOG.md)；
 - 正式版本通过 GitHub Actions 自动校验；
 - 原作者更新每周检查，也可手工启动；
 - 本机安装脚本：[`scripts/install-smartbuild.ps1`](./scripts/install-smartbuild.ps1)。
