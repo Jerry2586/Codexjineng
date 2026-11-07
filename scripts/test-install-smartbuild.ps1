@@ -129,7 +129,17 @@ description: Use for backend database administration only.
     if ([regex]::Matches($bootstrapAgain, 'SMARTBUILD-GLOBAL-BOOTSTRAP:START').Count -ne 1 -or -not $bootstrapAgain.Contains('开始制作') -or -not $bootstrapAgain.Contains('ponytail-review')) { throw 'Global entry is incomplete or duplicated.' }
     & $bootstrapInstaller -CodexHome $bootstrapHome -Remove
     if ([IO.File]::ReadAllText($bootstrapTarget) -ne $customInstructions) { throw 'Global entry removal changed unrelated instructions.' }
-    Write-Output 'PASS: all bundled skills, exact file hashes, idempotent reinstall, backup, user extension, installed runtime and catalog, global entry install/remove.'
+    # Exercise the documented Windows PowerShell entry point, whose script decoding differs from pwsh.
+    $legacyPowerShell = Get-Command powershell.exe -ErrorAction SilentlyContinue
+    if ($legacyPowerShell) {
+        & $legacyPowerShell.Source -NoProfile -NonInteractive -File $bootstrapInstaller -CodexHome $bootstrapHome
+        if ($LASTEXITCODE -ne 0) { throw 'Windows PowerShell global entry installation failed.' }
+        $legacyEntry = [IO.File]::ReadAllText($bootstrapTarget)
+        if (-not $legacyEntry.Contains('开始制作') -or -not $legacyEntry.EndsWith($customInstructions)) { throw 'Windows PowerShell global entry lost content.' }
+        & $legacyPowerShell.Source -NoProfile -NonInteractive -File $bootstrapInstaller -CodexHome $bootstrapHome -Remove
+        if ($LASTEXITCODE -ne 0 -or [IO.File]::ReadAllText($bootstrapTarget) -ne $customInstructions) { throw 'Windows PowerShell global entry removal failed.' }
+    }
+    Write-Output 'PASS: all bundled skills, exact file hashes, idempotent reinstall, backup, user extension, installed runtime and catalog, global entry install/remove, Windows PowerShell compatibility.'
 } finally {
     $resolved = [IO.Path]::GetFullPath($testRoot)
     if (-not $resolved.StartsWith($tempBase, [StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $resolved) -notlike 'smartbuild-install-*') { throw 'Refusing cleanup outside the temporary test directory.' }
