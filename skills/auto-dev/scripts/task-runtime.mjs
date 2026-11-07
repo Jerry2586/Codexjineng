@@ -334,7 +334,7 @@ export function transition(original, request, root) {
       insist(['passed', 'failed'].includes(request.result), 'Evidence result must be passed or failed');
       if (kind.startsWith('cognition_') && request.result === 'passed') {
         const receipt = request.receipt;
-        insist(receipt && same(canonicalRoot(receipt.projectRoot), root), 'AOCI runtime project mismatch');
+        insist(receipt && same(canonicalRoot(receipt.projectRoot), canonicalRoot(root)), 'AOCI runtime project mismatch');
         text(receipt.identity, 'cognition identity'); text(receipt.serviceVersion, 'MCP service version');
         insist(receipt.source === 'mcp', 'CLI/file presence does not prove MCP delivery or alignment');
         if (kind === 'cognition_delivery') insist(receipt.complete === true && receipt.delivered === true, 'Partial/check-only delivery is insufficient');

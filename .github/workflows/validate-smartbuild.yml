@@ -45,8 +45,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Verify Git skill library on Windows
-        run: node --test scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs
+      - name: Verify runtime and skill library on Windows
+        run: node --test scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs
       - name: Verify installed skills and backup behavior
         shell: pwsh
         run: ./scripts/test-install-smartbuild.ps1

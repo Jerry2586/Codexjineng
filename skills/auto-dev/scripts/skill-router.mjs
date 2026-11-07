@@ -78,7 +78,7 @@ function experience(state, root, context, skill) {
 export function recommend({ skills, context: input, profiles = [], state = null, root }) {
   const context = normalizeContext(input);
   check(Array.isArray(skills) && Array.isArray(profiles), 'skills and profiles must be arrays');
-  if (state) check(root && identity(fs.realpathSync(root)) === identity(state.project.root), 'Project identity mismatch');
+  if (state) check(root && identity(fs.realpathSync.native(root)) === identity(state.project.root), 'Project identity mismatch');
   const excluded = [], warnings = [], candidates = [], seen = new Set();
   for (const entry of skills) {
     let skill;

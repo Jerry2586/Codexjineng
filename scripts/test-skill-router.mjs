@@ -243,3 +243,20 @@ test('metadata candidates require a reviewed current profile before becoming an 
   assert.throws(()=>f.act('skill-select',{context:f.context,selection:f.selection(f.a)}),/reviewed|profile/);
   f.select(); assert.equal(f.state.tasks[0].routing.routes[0].selection.primary.confidence,'profile-reviewed');
 });
+
+test('project experience recognizes the same Windows project through a substituted drive', { skip: process.platform !== 'win32' }, t => {
+  const f = fixture(t); f.select(f.b); f.outcome({ result: 'passed', category: 'quality', progressed: true });
+  const drive = ['Q:', 'R:', 'S:', 'T:', 'U:', 'V:', 'W:', 'X:', 'Y:', 'Z:'].find(letter => !fs.existsSync(letter + path.sep));
+  assert.ok(drive, 'A free drive letter is required to verify Windows path aliases');
+  const mapped = spawnSync('subst', [drive, f.root], { encoding: 'utf8' });
+  assert.equal(mapped.status, 0, mapped.stderr || mapped.error?.message);
+  try {
+    const options = { skills: [f.a, f.b], profiles: f.profiles, context: f.context, state: f.state, root: drive + path.sep };
+    assert.equal(recommend(options).primary.path, f.b.path);
+    const other = structuredClone(f.state); other.project.root = path.dirname(f.state.project.root);
+    assert.throws(() => recommend({ ...options, state: other }), /identity/);
+  } finally {
+    const unmapped = spawnSync('subst', [drive, '/D'], { encoding: 'utf8' });
+    assert.equal(unmapped.status, 0, unmapped.stderr || unmapped.error?.message);
+  }
+});
