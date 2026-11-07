@@ -178,3 +178,30 @@ test('A09 full cognition completion ignores an unused failed bounded alternative
  for(const kind of ['cognition_delivery','cognition_alignment'])f.act('evidence',{kind,result:'passed',summary:'full cognition verified',artifact:f.proof(),receipt});
  f.start('R001');fs.writeFileSync(path.join(f.root,unused),'updated alternative');f.finish();assert.equal(summary(f.state,f.root).checks[0].completion.valid,true);
 });
+
+
+test('R003 cancelling the locked task reserves the next active task', t => {
+ const f=fixture(t);f.add({title:'next task'});
+ f.act('cancel',{reason:'fixture user cancellation'});
+ assert.equal(f.state.tasks[0].status,'cancelled');
+ assert.equal(f.state.lock,'R002');
+ assert.equal(f.state.tasks[1].status,'recorded');
+ assert.equal(f.state.tasks[1].authorization,null);
+});
+test('R003 whole-project and normalized watch paths accept in-scope changes', t => {
+ for(const watch of [['.'],['./'],['./app.txt']]) {
+  const f=fixture(t,{watch});
+  f.act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fixture assertions',artifact:f.proof()});
+  assert.equal(f.state.tasks[0].acceptanceResults.at(-1).result,'passed');
+ }
+});
+test('R003 deletion repairs can be recorded and still enforce the watched scope', t => {
+ const f=fixture(t);const finding=f.proof();
+ f.act('issue-open',{title:'obsolete file',severity:'medium',blocking:true,reviewer,independent:true,artifact:finding});
+ fs.unlinkSync(path.join(f.root,'app.txt'));
+ f.act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'file absent',artifact:f.proof()});
+ f.act('issue-resolve',{issueId:'I1',fix:'remove obsolete file',changes:['app.txt'],verification:'file absent',artifact:f.proof()});
+ assert.equal(f.state.tasks[0].issues[0].status,'resolved');
+ assert.throws(()=>f.act('acceptance-result',{criterion:0,result:'passed',changes:['other.txt'],verification:'outside scope',artifact:f.proof()}),/outside task watch/);
+ assert.throws(()=>f.act('acceptance-result',{criterion:0,result:'passed',changes:['../outside.txt'],verification:'outside project',artifact:f.proof()}),/escapes project/);
+});
