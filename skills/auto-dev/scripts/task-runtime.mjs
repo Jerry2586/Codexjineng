@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { STATUS, TERMINAL_STATES, OPERATIONS, isStartCommand, controlCommand, implementationInstruction, validAuthorization, resumeInstruction } from './workflow-contract.mjs';
+import { STATUS, TERMINAL_STATES, OPERATIONS, QUALITY_SKILLS, isStartCommand, controlCommand, implementationInstruction, validAuthorization, resumeInstruction } from './workflow-contract.mjs';
 export { isStartCommand } from './workflow-contract.mjs';
 import { routeTransition, diagnose } from './skill-router.mjs';
 import { assertStepReady, assertWorkflowReady, auditTransition, workflowReport, recoveryReady, recordReview, reviewWaiver } from './workflow-audit.mjs';
@@ -123,6 +123,7 @@ function completionBasis(task) {
   return {planVersion:task.planVersion,scope:task.scope,watch:task.watch,acceptance:task.acceptance,deliveries:task.deliveries,
     steps:task.steps,routing:task.routing,acceptanceResults:task.acceptanceResults,issues:task.issues,
     reviewRequired:task.reviewRequired,reviewWaiver:task.reviewWaiver,evidence:task.evidence,operations:task.operations,
+    ...(task.qualityVersion===1?{qualityVersion:1}:{}),
     ...(task.completion?.version===3?{aociRequired:task.aociRequired,cognitionScope:task.cognitionScope,evidenceKinds:task.completion.evidenceKinds}:{})};
 }
 function evidenceArtifacts(value,result=[]) {
@@ -189,6 +190,7 @@ function cognitionProofKinds(state, task, root, current = true) {
 function cognitionReady(state,task,root,current=true) { return cognitionProofKinds(state,task,root,current).length>0; }
 function completionEvidenceKinds(state,task,root) {
   return [...new Set(['business',...task.deliveries,
+    ...(task.qualityVersion===1?['project_audit','text_review']:[]),
     ...(workflowReport(task,root,auditHelpers).review.required?['review']:[]),
     ...(task.aociRequired?['cognition_alignment',...cognitionProofKinds(state,task,root,false)]:[])])];
 }
@@ -203,7 +205,16 @@ function ready(state, task, root) {
     insist(usableEvidence(state, task, 'cognition_alignment', root), 'Current cognition alignment required');
   }
 }
+export function qualityReport(state, task, root) {
+  return {required:task.qualityVersion===1,
+    project_audit:usableEvidence(state,task,'project_audit',root),
+    review:workflowReport(task,root,auditHelpers).review?.valid===true,
+    review_waived:workflowReport(task,root,auditHelpers).review?.waiver!=null,
+    text_review:usableEvidence(state,task,'text_review',root)};
+}
 function verified(state, task, root, beforeDelivery = false) {
+  if(task.qualityVersion===1) for(const kind of ['project_audit','text_review'])
+    insist(usableEvidence(state,task,kind,root),kind+' evidence missing, failed, or stale');
   insist(usableEvidence(state, task, 'business', root), 'Business evidence missing, failed, or stale');
   if (task.aociRequired) {
     insist(cognitionReady(state, task, root, false), 'Restore cognition for current session before verification');
@@ -215,6 +226,8 @@ export function transition(original, request, root) {
   validateState(original, root);
   insist(request.expectedRevision === original.revision, 'Revision conflict; reload before retrying');
   const state = structuredClone(original);
+  // Adopt current quality rules only during an authorized write; completed history stays intact.
+  for(const item of state.tasks) if(!TERMINAL.has(item.status)) item.qualityVersion=1;
   const action = text(request.action, 'action');
   const task = request.id ? taskFor(state, request.id) : null;
   const owned = () => { insist(task && state.lock === task.id, 'Action requires current task lock'); };
@@ -234,7 +247,7 @@ export function transition(original, request, root) {
       const item = { id: `R${String(state.nextId++).padStart(3, '0')}`, round: state.round.id,
         title: text(request.title, 'title'), scope: text(request.scope, 'scope'), acceptance: strings(request.acceptance, 'acceptance'),
         watch, dependsOn, conflicts: strings(request.conflicts ?? [], 'conflicts', true), deliveries,
-        aociRequired: request.aociRequired === true, cognitionScope: request.cognitionScope ?? 'bounded', reviewRequired: request.reviewRequired !== false, status: 'recorded', workflowVersion: 1, planVersion: 1, authorization: null,
+        aociRequired: request.aociRequired === true, cognitionScope: request.cognitionScope ?? 'bounded', reviewRequired: request.reviewRequired !== false, status: 'recorded', workflowVersion: 1, qualityVersion: 1, planVersion: 1, authorization: null,
         steps: [], step: 0, nextAction: 'Clarify scope and authorization', evidence: [], operations: [], history: [] };
       insist(['bounded', 'system'].includes(item.cognitionScope), 'Invalid cognition scope');
        if (!item.reviewRequired) { item.reviewWaiver=reviewWaiver(request.reviewWaiver,item.planVersion); item.history.push({at:now(),reviewWaiver:structuredClone(item.reviewWaiver)}); }
@@ -404,9 +417,14 @@ export function transition(original, request, root) {
     case 'evidence': {
       insist(task && task.status !== 'cancelled' && state.round.status === 'open', 'Evidence requires an open-round task');
       const kind = request.kind;
-      insist(['business', 'review', 'source_review', 'cognition_delivery', 'cognition_alignment', 'cognition_limit', ...OPS].includes(kind), 'Unknown evidence kind');
+      insist(['business', 'review', 'project_audit', 'text_review', 'source_review', 'cognition_delivery', 'cognition_alignment', 'cognition_limit', ...OPS].includes(kind), 'Unknown evidence kind');
       insist(['passed', 'failed'].includes(request.result), 'Evidence result must be passed or failed');
       const review = kind === 'review' ? recordReview(state, task, request, root, auditHelpers) : {};
+      const quality = Object.hasOwn(QUALITY_SKILLS,kind);
+      if(quality) {
+        insist(request.skill===QUALITY_SKILLS[kind],kind+' requires '+QUALITY_SKILLS[kind]);
+        text(request.source,'quality evidence source');
+      }
       if (kind.startsWith('cognition_') && request.result === 'passed') {
         const receipt = request.receipt;
         insist(receipt && same(canonicalRoot(receipt.projectRoot), canonicalRoot(root)), 'AOCI runtime project mismatch');
@@ -423,7 +441,7 @@ export function transition(original, request, root) {
       }
       task.evidence.push({ kind, result: request.result, summary: text(request.summary, 'evidence summary'),
         artifact: artifact(root, request.artifact), fingerprint: fingerprint(root, task.watch), planVersion: task.planVersion,
-        session: state.session, at: now(), ...review, ...(request.receipt ? { receipt: structuredClone(request.receipt) } : {}) });
+        session: state.session, at: now(), ...review, ...(quality?{skill:request.skill,source:request.source}:{}), ...(request.receipt ? { receipt: structuredClone(request.receipt) } : {}) });
       break;
     }
     case 'verify': active(); insist(['running', 'verifying'].includes(task.status), 'Task not in verification'); task.status = 'verifying'; break;
@@ -467,7 +485,7 @@ export function transition(original, request, root) {
       task.planVersion++; task.authorization=null; task.steps=[];
       delete task.routing;
       delete task.completion; delete task.completedAt;
-      task.status='queued'; task.step=0; task.workflowVersion=1; task.nextAction='Reverify scope, routes, acceptance and review';
+      task.status='queued'; task.step=0; task.workflowVersion=1; task.qualityVersion=1; task.nextAction='Reverify scope, routes, acceptance and review';
       state.tasks=state.tasks.filter(t=>t.id!==task.id);state.tasks.push(task);state.lock??=task.id;
       break;
     }
@@ -572,7 +590,7 @@ export function initialize(project, name, session) {
   finally { fs.closeSync(fd); fs.unlinkSync(path.join(root, `${FILE}.lock`)); }
 }
 export function summary(state, root) {
-  return { ...state, roundCheck:roundReport(state,root), checks: state.tasks.map(t => ({ id: t.id, completion:completionReport(t,root), workflow: workflowReport(t, root, auditHelpers), routing: t.routing ? diagnose(t, root, fingerprint(root, t.watch)) : null, evidence: Object.fromEntries(['business', 'review', 'source_review', 'cognition_delivery', 'cognition_alignment', 'cognition_limit', ...t.deliveries].map(kind => [kind, usableEvidence(state, t, kind, root)])) })) };
+  return { ...state, roundCheck:roundReport(state,root), checks: state.tasks.map(t => ({ id: t.id, quality:qualityReport(state,t,root), completion:completionReport(t,root), workflow: workflowReport(t, root, auditHelpers), routing: t.routing ? diagnose(t, root, fingerprint(root, t.watch)) : null, evidence: Object.fromEntries(['business', 'review', 'project_audit', 'text_review', 'source_review', 'cognition_delivery', 'cognition_alignment', 'cognition_limit', ...t.deliveries].map(kind => [kind, usableEvidence(state, t, kind, root)])) })) };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   try {

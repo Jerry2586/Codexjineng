@@ -52,6 +52,7 @@ jobs:
             README.md \
             LICENSE \
             skills/auto-dev skills/aoci-workflow \
+            skills/ponytail-audit skills/ponytail-review skills/humanizer \
             skills/backend-contract skills/database-design skills/api-integration \
             skills/security-baseline skills/environment-setup skills/deployment-release \
             SMARTBUILD.md VERSION CHANGELOG.md UPSTREAM.md \
@@ -69,12 +70,13 @@ jobs:
           git add --all
           git diff --cached --exit-code HEAD -- README.md LICENSE \
             skills/auto-dev skills/aoci-workflow \
+            skills/ponytail-audit skills/ponytail-review skills/humanizer \
             skills/backend-contract skills/database-design skills/api-integration \
             skills/security-baseline skills/environment-setup skills/deployment-release
           # Handwritten core is verified before regenerating only capability declarations.
           node skills/auto-dev/scripts/build-profiles.mjs skills
           git add -- skills/auto-dev/references/profiles.json
-          node --test scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs scripts/test-panel.mjs scripts/test-audit-regressions.mjs scripts/test-workflow-contract.mjs scripts/test-doctor.mjs
+          node --test scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs scripts/test-panel.mjs scripts/test-audit-regressions.mjs scripts/test-workflow-contract.mjs scripts/test-doctor.mjs skills/auto-dev/scripts/workflow-contract.test.mjs skills/auto-dev/scripts/quality-policy.test.mjs
           node scripts/validate-smartbuild.mjs
           node scripts/test-auto-dev-functional.mjs
           node scripts/test-auto-dev-behavior.mjs --self-test

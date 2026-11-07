@@ -16,11 +16,12 @@ function fixture(t,options={}) {
  const proof=()=>{const file='.smartbuild/evidence/'+(++seq)+'.txt';fs.writeFileSync(path.join(root,file),'fixture observation '+seq);return file;};
  const add=(fields={})=>act('add',{id:undefined,title:'task',scope:'app',watch:['app.txt'],acceptance:['app works'],...fields});
  const start=(id)=>{act('authorize',{id,message:'开始制作',source:'fixture user',operations:state.tasks.find(t=>t.id===id).deliveries});act('plan',{id,steps:[{title:'implement',input:'app',output:'app',verify:'test'}]});act('start',{id});};
- const checks=()=>{act('skill-select',{context:{goal:'regression',needs:['testing']},selection:{primary:null,support:[],reason:'standard regression'},audit:{read:false,compatible:true,reason:'fixture',executor}});act('skill-outcome',{result:'passed',category:'quality',progressed:true,symptom:'checked',reason:'passed',verification:'fixture test',artifact:proof(),executor});act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fixture test',artifact:proof()});act('evidence',{kind:'business',result:'passed',summary:'fixture',artifact:proof()});};
- const review=(fields={})=>act('evidence',{kind:'review',result:'passed',summary:'fixture review',artifact:proof(),reviewer,independent:true,findings:{blocking:0,advisory:0},...fields});
+ const quality=()=>{for(const [kind,skill] of [['project_audit','ponytail-audit'],['text_review','humanizer']])act('evidence',{kind,skill,source:'isolated test fixture',result:'passed',summary:'fixture quality check',artifact:proof()});};
+ const checks=()=>{act('skill-select',{context:{goal:'regression',needs:['testing']},selection:{primary:null,support:[],reason:'standard regression'},audit:{read:false,compatible:true,reason:'fixture',executor}});act('skill-outcome',{result:'passed',category:'quality',progressed:true,symptom:'checked',reason:'passed',verification:'fixture test',artifact:proof(),executor});act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fixture test',artifact:proof()});act('evidence',{kind:'business',result:'passed',summary:'fixture',artifact:proof()});quality();};
+ const review=(fields={})=>act('evidence',{kind:'review',skill:'ponytail-review',source:'isolated test fixture',result:'passed',summary:'fixture review',artifact:proof(),reviewer,independent:true,findings:{blocking:0,advisory:0},...fields});
  const finish=()=>{checks();review();act('verify');act('deliver');act('evidence',{kind:'local',result:'passed',summary:'fixture delivery',artifact:proof()});act('complete');};
  const {deferStart=false,...taskOptions}=options;add(taskOptions);if(!deferStart)start('R001');
- return {root,act,proof,add,start,checks,review,finish,get state(){return state;}};
+ return {root,act,proof,add,start,quality,checks,review,finish,get state(){return state;}};
 }
 test('F01 review identity findings and metrics survive state readback',t=>{
  const f=fixture(t);const metrics={before:{complexity:9},after:{complexity:4}};f.review({metrics});
@@ -93,7 +94,7 @@ test('A01 review loses independence if the reviewer later executes the task', t 
  f.act('skill-select',{context:{goal:'regression',needs:['testing']},selection:{primary:null,support:[],reason:'standard regression'},audit:{read:false,compatible:true,reason:'fixture',executor:reviewer}});
  f.act('skill-outcome',{result:'passed',category:'quality',progressed:true,symptom:'checked',reason:'passed',verification:'fixture',artifact:f.proof(),executor:reviewer});
  f.act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fixture',artifact:f.proof()});
- f.act('evidence',{kind:'business',result:'passed',summary:'fixture',artifact:f.proof()}); f.act('verify');
+ f.act('evidence',{kind:'business',result:'passed',summary:'fixture',artifact:f.proof()}); f.quality(); f.act('verify');
  assert.throws(()=>f.act('deliver'),/independent review/i);
 });
 test('A02 reopened tasks cannot reuse previous acceptance or delivery evidence', t => {
@@ -104,11 +105,11 @@ test('A02 reopened tasks cannot reuse previous acceptance or delivery evidence',
  f.act('start');
  f.act('skill-select',{context:{goal:'regression',needs:['testing']},selection:{primary:null,support:[],reason:'standard regression'},audit:{read:false,compatible:true,reason:'fixture',executor}});
  f.act('skill-outcome',{result:'passed',category:'quality',progressed:true,symptom:'checked',reason:'passed',verification:'fixture',artifact:f.proof(),executor});
- f.act('verify');assert.throws(()=>f.act('deliver'),/business|acceptance|review/i);
+ f.act('verify');assert.throws(()=>f.act('deliver'),/project_audit/i);
  assert.equal(f.state.tasks[0].history.at(-1).reopened.basis.evidence.length,before.evidence.length);
  f.act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fresh test',artifact:f.proof()});
  f.act('evidence',{kind:'business',result:'passed',summary:'fresh test',artifact:f.proof()});
- f.review();f.act('deliver');assert.throws(()=>f.act('complete'),/local.*evidence/i);
+ f.quality();f.review();f.act('deliver');assert.throws(()=>f.act('complete'),/local.*evidence/i);
  f.act('evidence',{kind:'local',result:'passed',summary:'fresh delivery',artifact:f.proof()});f.act('complete');
  assert.equal(summary(f.state,f.root).checks[0].completion.valid,true);
 });
@@ -126,7 +127,7 @@ test('A04 genuinely legacy completion remains unverified until fresh acceptance'
  f.act('reopen',{reason:'verify legacy record',source:'fixture user'});
  if(!f.state.tasks[0].authorization)f.act('authorize',{message:'开始制作',source:'fixture user',operations:['local']});
  if(!f.state.tasks[0].steps.length)f.act('plan',{steps:[{title:'reverify',input:'legacy',output:'evidence',verify:'tests'}]});
- f.act('start');f.act('verify');assert.throws(()=>f.act('deliver'),/business|acceptance|routing/i);
+ f.act('start');f.act('verify');assert.throws(()=>f.act('deliver'),/project_audit/i);
  f.finish();assert.equal(summary(f.state,f.root).checks[0].completion.valid,true);
 });
 

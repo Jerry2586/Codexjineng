@@ -3,6 +3,12 @@ import path from 'node:path';
 import {catalog} from '../skills/auto-dev/scripts/skill-catalog.mjs';
 
 const requiredFiles = [
+  ...['ponytail-audit', 'ponytail-review', 'humanizer'].flatMap(name => ['skills/'+name+'/SKILL.md', 'skills/'+name+'/LICENSE']),
+  'skills/auto-dev/references/mandatory-quality.md',
+  'skills/auto-dev/references/global-bootstrap.md',
+  'skills/auto-dev/scripts/install-global-bootstrap.ps1',
+  'skills/auto-dev/scripts/quality-policy.test.mjs',
+  'skills/auto-dev/scripts/workflow-contract.test.mjs',
   'skills/auto-dev/scripts/workflow-contract.mjs',
   'skills/auto-dev/scripts/capability-contract.mjs',
   'skills/auto-dev/scripts/doctor.mjs',
@@ -68,7 +74,7 @@ const commandCenter = fs.existsSync('skills/auto-dev/references/command-center-p
   ? fs.readFileSync('skills/auto-dev/references/command-center-panel.md', 'utf8')
   : '';
 
-const requiredSkillText = ['# 智构开发系统', '版本：'+String.fromCharCode(96)+version+String.fromCharCode(96), '## 最高优先级：开发回合入口闸门', 'references/execution-policy.md', 'references/execution-guide.md', 'references/task-runtime.md', 'references/command-center-panel.md', 'references/general-quality.md', 'references/health-and-handoff.md'];
+const requiredSkillText = ['# 智构开发系统', '版本：'+String.fromCharCode(96)+version+String.fromCharCode(96), '## 最高优先级：开发回合入口闸门', 'references/execution-policy.md', 'references/execution-guide.md', 'references/task-runtime.md', 'references/command-center-panel.md', 'references/general-quality.md', 'references/health-and-handoff.md', 'references/mandatory-quality.md', '唯一开工口令'];
 for (const text of requiredSkillText) if (!skill.includes(text)) failures.push('SKILL.md 缺少入口或引用: '+text);
 if (skill.split('\n').length > 100) failures.push('主入口过长，执行细则应按需展开');
 const ruleFiles=['skills/auto-dev/SKILL.md',...fs.readdirSync('skills/auto-dev/references').filter(name=>name.endsWith('.md')).map(name=>'skills/auto-dev/references/'+name)];
@@ -76,7 +82,7 @@ const rules=ruleFiles.map(file=>fs.readFileSync(file,'utf8')).join('\n');
 for (const term of ['固定五部顺序','新增项默认排到队尾','只有整个开发轮次关闭并开始下一轮时才归档','真实用户原文','planVersion','证据摘要快照','最终整轮回归','独立审查','不授权新增任务','CLI 安装成功','先测试、通过后部署、部署后验收','正规军第一版','真实性红线','用户不负责挑技能']) if(!rules.includes(term)) failures.push('合同缺少关键保护: '+term);
 for (const file of [...ruleFiles,'README.md','SMARTBUILD.md','skills/auto-dev/agents/openai.yaml']) {
  const content=fs.readFileSync(file,'utf8');
- if(/唯一开工与暂停恢复口令|开工与恢复只接受|同义说法只用于识别非开工动作/.test(content)) failures.push('残留矛盾授权规则: '+file);
+ if(/明确的开发、修复或测试请求在范围清楚时直接执行|暂停后明确“继续”只恢复旧范围|普通明确请求不额外要求口令/.test(content)) failures.push('残留矛盾授权规则: '+file);
  if(content.includes('\uFFFD')) failures.push('发现损坏字符: '+file);
  for(const match of content.matchAll(/\]\(([^)]+\.md)(?:#[^)]*)?\)/g)){
   const target=match[1];if(/^(?:https?:|[A-Za-z]:)/.test(target)||target.includes('<'))continue;

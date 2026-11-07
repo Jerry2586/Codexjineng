@@ -210,7 +210,8 @@ test('delivery-stage failures can be diagnosed without bypassing pending side ef
   f.select(); f.outcome({result:'passed',category:'quality',progressed:true});
   f.act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fixture check',artifact});
   f.act('verify'); f.act('evidence', {kind:'business',result:'passed',summary:'fixture validation',artifact});
-  f.act('evidence', {kind:'review',result:'passed',summary:'fixture review',artifact,reviewer:{id:'fixture-reviewer',kind:'subagent',source:'tool',observation:'fixture return'},independent:true,findings:{blocking:0,advisory:0}});
+  f.act('evidence', {kind:'review',skill:'ponytail-review',source:'isolated test fixture',result:'passed',summary:'fixture review',artifact,reviewer:{id:'fixture-reviewer',kind:'subagent',source:'tool',observation:'fixture return'},independent:true,findings:{blocking:0,advisory:0}});
+  for (const [kind, skill] of [['project_audit','ponytail-audit'],['text_review','humanizer']]) f.act('evidence', {kind,skill,source:'isolated test fixture',result:'passed',summary:'fixture quality check',artifact});
   f.act('deliver');
   f.act('operation-start', {key:'fixture-operation',operation:'local',target:'fixture destination'});
   f.outcome(); f.outcome();

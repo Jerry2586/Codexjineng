@@ -113,7 +113,23 @@ description: Use for backend database administration only.
     & (Join-Path $PSScriptRoot 'restore-smartbuild.ps1') -BackupPath $initialBackup -Destination $customTarget
     if (Test-Path -LiteralPath (Join-Path $customTarget 'SKILL.md')) { throw 'Restore retained a newly installed file.' }
     if ([IO.File]::ReadAllText((Join-Path $customRoot 'animate/custom.txt')) -ne 'local extension') { throw 'Restore removed custom extension.' }
-    Write-Output 'PASS: all bundled skills, exact file hashes, idempotent reinstall, backup, user extension, installed runtime and catalog.'
+    # The global entry must be repeatable and preserve all unrelated text, including whitespace.
+    $bootstrapHome = Join-Path $testRoot 'global-entry'
+    New-Item -ItemType Directory -Path $bootstrapHome | Out-Null
+    $bootstrapTarget = Join-Path $bootstrapHome 'AGENTS.md'
+    $bootstrapNewline = [Environment]::NewLine
+    $customInstructions = $bootstrapNewline + '# Personal instructions' + $bootstrapNewline + 'Keep this text.' + $bootstrapNewline + $bootstrapNewline
+    [IO.File]::WriteAllText($bootstrapTarget, $customInstructions)
+    $bootstrapInstaller = Join-Path $target 'scripts/install-global-bootstrap.ps1'
+    & $bootstrapInstaller -CodexHome $bootstrapHome
+    $bootstrapFirst = [IO.File]::ReadAllText($bootstrapTarget)
+    & $bootstrapInstaller -CodexHome $bootstrapHome
+    $bootstrapAgain = [IO.File]::ReadAllText($bootstrapTarget)
+    if ($bootstrapFirst -ne $bootstrapAgain -or -not $bootstrapAgain.EndsWith($customInstructions)) { throw 'Global entry changed unrelated instructions or was not idempotent.' }
+    if ([regex]::Matches($bootstrapAgain, 'SMARTBUILD-GLOBAL-BOOTSTRAP:START').Count -ne 1 -or -not $bootstrapAgain.Contains('开始制作') -or -not $bootstrapAgain.Contains('ponytail-review')) { throw 'Global entry is incomplete or duplicated.' }
+    & $bootstrapInstaller -CodexHome $bootstrapHome -Remove
+    if ([IO.File]::ReadAllText($bootstrapTarget) -ne $customInstructions) { throw 'Global entry removal changed unrelated instructions.' }
+    Write-Output 'PASS: all bundled skills, exact file hashes, idempotent reinstall, backup, user extension, installed runtime and catalog, global entry install/remove.'
 } finally {
     $resolved = [IO.Path]::GetFullPath($testRoot)
     if (-not $resolved.StartsWith($tempBase, [StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Leaf $resolved) -notlike 'smartbuild-install-*') { throw 'Refusing cleanup outside the temporary test directory.' }

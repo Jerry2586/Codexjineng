@@ -71,6 +71,11 @@ function belongsTo(item, state) {
   return state.phase ? STAGES[state.phase - 1] : '待识别';
 }
 
+function qualityText(state) {
+  const task=currentTask(state), quality=state.checks?.find(check=>check.id===task?.id)?.quality;
+  const result=kind=>kind==='review'&&quality?.review_waived?'独立审核已豁免':quality?.[kind]===true?'已通过':'待执行或复核';
+  return '质量规则：已启用｜项目审计：'+result('project_audit')+'｜代码审核：'+result('review')+'｜文字检查：'+result('text_review');
+}
 function renderFull(state, understanding) {
   const task = currentTask(state);
   const lines = [];
@@ -84,7 +89,7 @@ function renderFull(state, understanding) {
   lines.push(`| 当前步骤 | ${stepText(task)} |`);
   lines.push(`| 负责智能体 | ${cell(owner(task))} |`);
   lines.push('', '### 全局五部进度', '', stageLine(state.phase), '');
-  lines.push('### 本回合理解', '', understanding, '');
+  lines.push('### 本回合理解', '', understanding, '', qualityText(state), '');
   lines.push('### 活动任务', '');
   const active = activeTasks(state);
   lines.push(PANEL.fullHeader, '|---|---|---|---|---|---|');
@@ -113,7 +118,7 @@ function renderCompact(state, understanding) {
   lines.push(PANEL.firstLine, '', PANEL.title, '');
   lines.push(`\`${agentState(state)}｜${cell(state.project?.name ?? '待确认')}｜第${state.round?.id ?? 1}开发轮次｜${state.phase ? STAGES[state.phase - 1] : '待识别'}｜${state.lock ?? '无'}｜${task?.steps?.length ? `${task.step}/${task.steps.length}` : '未开始'}\``);
   lines.push('', stageLine(state.phase), '');
-  lines.push(`**本回合理解：** ${understanding}`, '');
+  lines.push(`**本回合理解：** ${understanding}`, '', qualityText(state), '');
   const active = compactTasks(state);
   if (!active.length) {
     lines.push(PANEL.shortHeader, '|---|---|---|---|', '| 待命 | — | 暂无活动任务 | 等待明确需求 |');

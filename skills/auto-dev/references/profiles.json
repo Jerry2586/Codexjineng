@@ -420,6 +420,34 @@
       "review": null
     },
     {
+      "dir": "humanizer",
+      "file": "humanizer/SKILL.md",
+      "name": "humanizer",
+      "sha256": "0612f1dfb1672b0ea9b97e139bf1f06cabe98d8b27424fe8ff01e1fb4cc99cad",
+      "version": "871805acf100627f4d0962ab8eea14c3a8cc166ed8aeb11541d54cae01b9046b",
+      "needs": [
+        "writing"
+      ],
+      "domains": [
+        "writing"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "unspecified",
+      "inputs": [
+        "task scope and current source"
+      ],
+      "outputs": [
+        "candidate instructions; review before execution"
+      ],
+      "notFor": [],
+      "declaration": {
+        "source": "skill-metadata",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
       "dir": "improve-animations",
       "file": "improve-animations/SKILL.md",
       "name": "improve-animations",
@@ -513,6 +541,63 @@
       ],
       "declaration": {
         "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "ponytail-audit",
+      "file": "ponytail-audit/SKILL.md",
+      "name": "ponytail-audit",
+      "sha256": "2b3223a02c386d1263e1b08343cb8eb3a53e444cdafb1d79e26c8ec2a8fcad28",
+      "version": "279a33b83892e268dc20ef035c613483eb8c9753e180cd0ea70447ee058f906f",
+      "needs": [
+        "testing",
+        "security"
+      ],
+      "domains": [
+        "security"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "unspecified",
+      "inputs": [
+        "task scope and current source"
+      ],
+      "outputs": [
+        "candidate instructions; review before execution"
+      ],
+      "notFor": [],
+      "declaration": {
+        "source": "skill-metadata",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "ponytail-review",
+      "file": "ponytail-review/SKILL.md",
+      "name": "ponytail-review",
+      "sha256": "33fe4ebe22a460924e5d4a261e223df22e409cc94ab76182bee9fb91a3ef022e",
+      "version": "e095e0349f1a9d09413ed11de3756274a84da2fd5d4e813aeb46b038cae55d91",
+      "needs": [
+        "testing"
+      ],
+      "domains": [
+        "code-review"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "unspecified",
+      "inputs": [
+        "task scope and current source"
+      ],
+      "outputs": [
+        "candidate instructions; review before execution"
+      ],
+      "notFor": [],
+      "declaration": {
+        "source": "skill-metadata",
         "status": "declared"
       },
       "review": null

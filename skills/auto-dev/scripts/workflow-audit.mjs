@@ -1,3 +1,4 @@
+import { QUALITY_SKILLS } from './workflow-contract.mjs';
 import { readSkillEntry } from './skill-catalog.mjs';
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
 const text=(s,key)=>{check(typeof s==='string'&&s.trim(),key+' required');return s.trim();};
@@ -81,7 +82,7 @@ export function workflowReport(task,root,helpers,{beforeDelivery=false}={}) {
   const reviewRecord=(task.evidence??[]).filter(e=>e.kind==='review'&&e.planVersion===task.planVersion).at(-1);
   const waiver=task.reviewWaiver;
   const waived=task.reviewRequired===false && waiver?.planVersion===task.planVersion && !!waiver.source?.trim() && !!waiver.reason?.trim();
-  const review={required:!waived,waiver:waived?waiver:null,record:reviewRecord??null,valid:!!reviewRecord&&reviewRecord.result==='passed'&&reviewRecord.independent===true&&independentReviewer(reviewRecord.reviewer)&&!taskExecutors(task).some(actor=>actor.id===reviewRecord.reviewer.id)&&reviewRecord.findings?.blocking===0&&artifactValid(root,reviewRecord.artifact,helpers)&&reviewRecord.fingerprint===helpers.fingerprint(root,task.watch)};
+  const review={required:!waived,waiver:waived?waiver:null,record:reviewRecord??null,valid:!!reviewRecord&&reviewRecord.result==='passed'&&reviewRecord.independent===true&&independentReviewer(reviewRecord.reviewer)&&!taskExecutors(task).some(actor=>actor.id===reviewRecord.reviewer.id)&&reviewRecord.findings?.blocking===0&&(task.qualityVersion!==1||reviewRecord.skill===QUALITY_SKILLS.review&&!!reviewRecord.source?.trim())&&artifactValid(root,reviewRecord.artifact,helpers)&&reviewRecord.fingerprint===helpers.fingerprint(root,task.watch)};
   const reason=routes.find(r=>!r.valid)?.reason ?? (acceptance.some(a=>!a.valid)?'Acceptance evidence missing, failed, or stale':null)
     ?? (issues.some(i=>i.blocking&&!i.valid)?'Blocking issue requires repair and current retest':null)
     ?? (review.required&&!review.valid?'Independent review evidence missing, failed, or stale':null);
