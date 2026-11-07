@@ -1,7 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {catalog} from '../skills/auto-dev/scripts/skill-catalog.mjs';
 
 const requiredFiles = [
+  'skills/auto-dev/scripts/workflow-contract.mjs',
+  'skills/auto-dev/scripts/capability-contract.mjs',
+  'skills/auto-dev/scripts/doctor.mjs',
+  'skills/auto-dev/references/execution-policy.md',
+  'skills/auto-dev/references/execution-guide.md',
+  'skills/auto-dev/references/general-quality.md',
+  'skills/auto-dev/references/health-and-handoff.md',
+  'scripts/test-workflow-contract.mjs',
+  'scripts/test-audit-regressions.mjs',
+  'scripts/test-doctor.mjs',
   'README.md',
   'LICENSE',
   'VERSION',
@@ -57,59 +68,20 @@ const commandCenter = fs.existsSync('skills/auto-dev/references/command-center-p
   ? fs.readFileSync('skills/auto-dev/references/command-center-panel.md', 'utf8')
   : '';
 
-const requiredSkillText = [
-  '# 智构开发系统',
-  `版本：\`${version}\``,
-  '## 自动识别事项与统一任务队列（先判定）',
-  '## 开发请求第一回复协议（不得省略）',
-  '首次启动完整版与后续精简面板都映射同一份可信账本',
-  '禁止只用一段文字复述需求后询问“需要我开始吗”',
-  '缺少其中任意一项都视为没有执行本技能',
-  '本技能的开发框架是强制外壳',
-  '先把输入转成简短、可核对的大白话文字需求',
-  '图片和附件只提供需求证据',
-  '## 精简需求记忆体',
-  '只有整个开发轮次关闭并开始下一轮时才归档退出活动表',
-  '活动表里没有的旧聊天要求',
-  '## 最高优先级：开发回合入口闸门',
-  '在进行任何工具调用、子智能体派发、代码修改、测试或外部写入之前',
-  '未明确先讨论，未授权等待指令，已授权则先完成以上展示再执行',
-  '用户当前消息去除首尾空白后全文恰好是 `开始制作`',
-  '当前任务锁：R001',
-  '## 五阶段开发骨架',
-  '这五部的名称、顺序和阶段管理逻辑属于写死的运行骨架',
-  '## 智构开发指挥中心',
-  '| 状态 | 编号 | 事项 | 下一步 |',
-  '①构想定稿',
-  'references/command-center-panel.md',
-  '唯一下一步',
-  '不写死示例项目、编号、阶段或进度',
-  '阶段一是自由创作和真实功能试制',
-  '泥腿子版本盘点、拆分、迁移和补齐为正规军第一版',
-  '### 真实性红线',
-  '先测试、通过后部署、部署后验收',
-  '一个工具调用通道和一个代码修改执行者',
-  '用户不负责挑技能',
-  '## 统一控制口令',
-  '### 项目阶段推进',
-  '`转到第N阶段`',
-  '`进入大下一步`',
-  '1. 构想定稿',
-  '2. 架构定界',
-  '3. 企业化改造',
-  '4. 接口清理与重构',
-  '5. 测试部署验收',
-  '## 先区分问答和开发任务',
-  '## 开发任务强制分段',
-  '复杂逻辑的线路图澄清',
-  '当前任务锁',
-  '暂停口令',
-  '## 全功能测试与发布闸门',
-  '公开仓库安装测试和CI必须全部通过',
-];
-
-for (const text of requiredSkillText) {
-  if (!skill.includes(text)) failures.push(`SKILL.md 缺少关键规则: ${text}`);
+const requiredSkillText = ['# 智构开发系统', '版本：'+String.fromCharCode(96)+version+String.fromCharCode(96), '## 最高优先级：开发回合入口闸门', 'references/execution-policy.md', 'references/execution-guide.md', 'references/task-runtime.md', 'references/command-center-panel.md', 'references/general-quality.md', 'references/health-and-handoff.md'];
+for (const text of requiredSkillText) if (!skill.includes(text)) failures.push('SKILL.md 缺少入口或引用: '+text);
+if (skill.split('\n').length > 100) failures.push('主入口过长，执行细则应按需展开');
+const ruleFiles=['skills/auto-dev/SKILL.md',...fs.readdirSync('skills/auto-dev/references').filter(name=>name.endsWith('.md')).map(name=>'skills/auto-dev/references/'+name)];
+const rules=ruleFiles.map(file=>fs.readFileSync(file,'utf8')).join('\n');
+for (const term of ['固定五部顺序','新增项默认排到队尾','只有整个开发轮次关闭并开始下一轮时才归档','真实用户原文','planVersion','证据摘要快照','最终整轮回归','独立审查','不授权新增任务','CLI 安装成功','先测试、通过后部署、部署后验收','正规军第一版','真实性红线','用户不负责挑技能']) if(!rules.includes(term)) failures.push('合同缺少关键保护: '+term);
+for (const file of [...ruleFiles,'README.md','SMARTBUILD.md','skills/auto-dev/agents/openai.yaml']) {
+ const content=fs.readFileSync(file,'utf8');
+ if(/唯一开工与暂停恢复口令|开工与恢复只接受|同义说法只用于识别非开工动作/.test(content)) failures.push('残留矛盾授权规则: '+file);
+ if(content.includes('\uFFFD')) failures.push('发现损坏字符: '+file);
+ for(const match of content.matchAll(/\]\(([^)]+\.md)(?:#[^)]*)?\)/g)){
+  const target=match[1];if(/^(?:https?:|[A-Za-z]:)/.test(target)||target.includes('<'))continue;
+  if(!fs.existsSync(path.resolve(path.dirname(file),target))) failures.push('失效文档引用: '+file+' → '+target);
+ }
 }
 
 const requiredCommandCenterText = [
@@ -178,10 +150,33 @@ if (!openaiYaml.includes('首次启动完整版')
 const workflow = fs.existsSync('.github/workflows/validate-smartbuild.yml')
   ? fs.readFileSync('.github/workflows/validate-smartbuild.yml', 'utf8')
   : '';
+// Capability profiles bind a skill's declared capabilities to its exact content.
+// A skill edit without regenerating profiles silently changes what the router may pick.
+const profilesFile = 'skills/auto-dev/references/profiles.json';
+if (!fs.existsSync(profilesFile)) {
+  failures.push('缺少技能能力档案: ' + profilesFile + '（运行 node skills/auto-dev/scripts/build-profiles.mjs skills）');
+} else {
+  try {
+    const stored = JSON.parse(fs.readFileSync(profilesFile, 'utf8'));
+    if(stored.schemaVersion!==2||!Array.isArray(stored.skills)) throw new Error('Expected profiles schemaVersion 2');
+    const entries=catalog(['skills']);
+    const seen=new Set();
+    for (const profile of stored.skills) {
+      const relative=profile.file??profile.dir+'/SKILL.md',file=path.resolve('skills',relative),boundary=path.relative(path.resolve('skills'),file);
+      if(boundary.startsWith('..')||path.isAbsolute(boundary)||relative.includes('\\')){failures.push('能力档案路径越界: '+relative);continue;}
+      if(seen.has(file))failures.push('重复能力档案: '+relative);seen.add(file);
+      const entry=entries.find(item=>path.resolve(item.path)===file);
+      if(!entry){failures.push('能力档案指向的技能/角色不存在: '+relative);continue;}
+      if(entry.sha256!==profile.sha256||entry.version!==profile.version)failures.push('能力档案已过期: '+profile.name+'（重新运行 build-profiles.mjs）');
+    }
+  } catch(error){failures.push('能力档案无效: '+error.message);}
+}
+
 if (!workflow.includes('node scripts/test-auto-dev-functional.mjs')) failures.push('CI 没有运行功能规则测试');
 if (!workflow.includes('node scripts/test-auto-dev-behavior.mjs --self-test')) failures.push('CI 没有运行离线行为契约');
 
 if (!workflow.includes('node --test scripts/test-task-runtime.mjs')) failures.push('CI 没有运行任务状态机测试');
+if (!workflow.includes('scripts/test-panel.mjs')) failures.push('CI 没有运行面板黄金测试');
 
 for (const file of requiredFiles) {
   if (!fs.existsSync(file)) continue;

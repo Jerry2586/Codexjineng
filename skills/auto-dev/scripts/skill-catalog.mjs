@@ -25,7 +25,7 @@ function entryMetadata(file) {
   return { name: field('name'), description: field('description'), path: actual, sha256: crypto.createHash('sha256').update(fs.readFileSync(actual)).digest('hex') };
 }
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
-export const isBackupPath = file => path.resolve(file).split(/[\\/]/).some(part => /^smartbuild-backup-/i.test(part) || part === 'smartbuild-backups');
+export const isBackupPath = file => path.resolve(file).split(/[\\/]/).some(part => /^(?:smartbuild-backup-|\.skill-library-(?:stage|old)-)/i.test(part) || part === 'smartbuild-backups');
 function packageVersion(root) {
   const files = [];
   function visit(folder) {

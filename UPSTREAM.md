@@ -21,6 +21,12 @@
 
 - `skills/auto-dev/**`
 - `skills/aoci-workflow/**`
+- `skills/backend-contract/**`
+- `skills/database-design/**`
+- `skills/api-integration/**`
+- `skills/security-baseline/**`
+- `skills/environment-setup/**`
+- `skills/deployment-release/**`
 - `README.md`
 - `LICENSE`
 - `SMARTBUILD.md`
@@ -34,9 +40,25 @@
 - `scripts/test-auto-dev-behavior.mjs`
 - `scripts/test-task-runtime.mjs`
 - `scripts/test-skill-library.mjs`
+- `scripts/test-skill-router.mjs`
+- `scripts/test-workflow-audit.mjs`
+- `scripts/test-panel.mjs`
+- `scripts/golden/**`
 - `scripts/test-install-smartbuild.ps1`
 - `.github/workflows/upstream-sync.yml`
 - `.github/workflows/validate-smartbuild.yml`
+
+`skills/auto-dev/references/profiles.json` 是生成物，由 `build-profiles.mjs` 维护；上游同步和技能库更新都不得直接改写它，只能通过重新生成更新。
+
+## 技能库更新不会中断系统（韧性约束）
+
+技能库由用户独立维护，随时可能新增、更新或移除技能。以下约束保证任何更新都不会让工作台失去可用能力：
+
+1. **安装完整**：`install-smartbuild.ps1` 复制 `skills/` 下所有含 `SKILL.md` 的目录，不再写死技能名，并在安装后调用 `build-profiles.mjs <技能根> --check` 重建档案。
+2. **缺失不报错**：`loadProfiles` 遇到未安装的技能目录时跳过并上报 `skill-not-installed`，不抛出、不中断路由。
+3. **过期仍可用**：技能内容变化使摘要不符时，档案进入 `profile-stale` 状态，仍参与推荐但排序降低并在 `warnings` 中报告；校验脚本提示重新生成，而不是让能力消失。
+4. **可自愈**：`node skills/auto-dev/scripts/build-profiles.mjs <技能根> --check` 幂等重建，只在内容不一致时写入，可安全地反复运行。
+5. **核心不被覆盖**：`auto-dev` 与 `aoci-workflow` 由智构安装器维护，技能库批量更新和回退都会拒绝它们。
 
 上游如果以后出现同名 `skills/auto-dev`，仍以本仓库的智构版本为准；是否吸收其内容必须人工审查，不能自动覆盖。
 

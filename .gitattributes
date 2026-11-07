@@ -1,2 +1,4 @@
+# Preserve package bytes: capability profiles and evidence bind SHA-256.
+* -text
 skills/**/*.md linguist-detectable
 README.md linguist-documentation

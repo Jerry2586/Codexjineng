@@ -4,6 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { readSkillMetadata, isBackupPath } from './skill-catalog.mjs';
+import { refresh } from './build-profiles.mjs';
 import { repository, relativeDirectory, fetchRepository, trackingRef, resolveCommit, snapshot } from './skill-library-git.mjs';
 
 const ensure = (condition, message) => { if (!condition) throw new Error(message); };
@@ -29,7 +30,17 @@ function within(root, target) {
 function removeOwned(root, target) {
   within(root, target);
   // Verify the complete tree before recursive removal, including dangling links.
-  if (exists(target)) { fileHash(target); fs.rmSync(target, { recursive: true, force: true }); }
+  if (exists(target)) {
+    // Cleanup must also work for an oversized partial snapshot. Keep path/type safety
+    // independent of the size limits used to admit a skill into the library.
+    const verifyTree = folder => {
+      const stat=fs.lstatSync(folder);
+      ensure(!stat.isSymbolicLink(), 'Skill contains a symlink/junction');
+      ensure(stat.isDirectory()||stat.isFile(), 'Skill contains unsupported files');
+      if(stat.isDirectory())for(const name of fs.readdirSync(folder))verifyTree(path.join(folder,name));
+    };
+    verifyTree(target); fs.rmSync(target, { recursive: true, force: true });
+  }
 }
 export function fileHash(directory) {
   noLinks(directory);
@@ -64,7 +75,28 @@ function saveJSON(file, value) {
   finally { fs.closeSync(fd); }
   try { fs.renameSync(temporary, file); } finally { if (exists(temporary)) fs.unlinkSync(temporary); }
 }
-function copy(from, to) { fileHash(from); fs.cpSync(from, to, { recursive: true, errorOnExist: true, force: false }); ensure(fileHash(from) === fileHash(to), 'Copied files failed verification'); }
+function copy(from, to) {
+  fileHash(from); noLinks(to); ensure(!exists(to), 'Copy target already exists');
+  // Use Unicode-safe filesystem operations for each path; verify the resulting tree.
+  const visit = (source, target) => {
+    fs.mkdirSync(target, { recursive: true });
+    for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+      const src = path.join(source, entry.name), dst = path.join(target, entry.name);
+      if (entry.isDirectory()) visit(src, dst);
+      else { fs.copyFileSync(src, dst, fs.constants.COPYFILE_EXCL); fs.chmodSync(dst, fs.statSync(src).mode); }
+    }
+  };
+  visit(from, to); ensure(fileHash(from) === fileHash(to), 'Copied files failed verification');
+}
+function refreshProfiles(ctx, skillsRoot) {
+  const corePath = path.join(skillsRoot, 'auto-dev');
+  if (!exists(path.join(corePath, 'SKILL.md'))) return;
+  const target = noLinks(path.join(corePath, 'references/profiles.json'));
+  const core = ctx.state.skills.find(item => equal(item.path, corePath));
+  const wasClean = core && fileHash(corePath) === core.installedHash;
+  const result = refresh(skillsRoot, target);
+  if (result.changed && wasClean) { core.installedHash = fileHash(corePath); save(ctx); }
+}
 function validId(id) { ensure(typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(id) && !/^(con|prn|aux|nul|com\d|lpt\d)$/.test(id), 'Invalid library skill ID'); return id; }
 function openLibrary(options = {}, create = false) {
   const root = noLinks(options.library ?? path.join(os.homedir(), '.agents', 'skill-library'));
@@ -161,6 +193,7 @@ function commitFiles(ctx, old, next, prepared, action) {
     fs.renameSync(stage, target);
     if (old) ctx.state.skills[ctx.state.skills.findIndex(item => item.id === old.id)] = next; else ctx.state.skills.push(next);
     save(ctx);
+    refreshProfiles(ctx, parent);
     if (exists(parked)) removeOwned(parent, parked);
     fs.unlinkSync(pending);
     return next;
@@ -247,6 +280,7 @@ export function updateLibrary(options, message, ids = null) {
           for (const directory of details.discovered) if (!ctx.state.skills.some(other => other.source?.repository === url && other.source.directory === directory) && !report.discovered.some(entry => entry.repository === url && entry.directory === directory && entry.ref === item.source.ref)) report.discovered.push({ repository: url, ref: item.source.ref, directory });
           item.checkedAt = now();
           if (commit === item.installedCommit && fileHash(prepared) === item.installedHash) {
+            refreshProfiles(ctx, path.dirname(item.path));
             save(ctx); report.results.push({ ...result, status: 'current' }); continue;
           }
           const next = { ...item, ...info, attribution: details.attribution, installedCommit: commit, upstreamCommit: commit, checkedAt: now(), updatedAt: now() };
@@ -312,6 +346,7 @@ export function recoverLibrary(options) {
       }
     }
     for (const [target, expected] of [[j.stage, j.newHash], [j.parked, j.oldHash]]) if (exists(target)) { ensure(fileHash(target) === expected, 'Recovery files changed; manual recovery required'); removeOwned(parent, target); }
+    refreshProfiles(ctx, parent);
     fs.unlinkSync(file);
     return { status: committed ? 'completed' : 'restored', id: j.skillId };
   }, true);

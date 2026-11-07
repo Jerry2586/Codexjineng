@@ -5,8 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { initialState, transition } from '../skills/auto-dev/scripts/task-runtime.mjs';
-import { readSkillMetadata } from '../skills/auto-dev/scripts/skill-catalog.mjs';
-import { recommend, diagnose } from '../skills/auto-dev/scripts/skill-router.mjs';
+import { readSkillMetadata, catalog } from '../skills/auto-dev/scripts/skill-catalog.mjs';
+import { recommend, diagnose, loadProfiles } from '../skills/auto-dev/scripts/skill-router.mjs';
 
 function fixture(t) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'smartbuild-router-')));
@@ -106,11 +106,15 @@ test('success is evidence-bound project experience and does not complete a task'
   const proof = f.state.tasks[0].routing.routes[0].outcomes[0]; fs.unlinkSync(path.join(f.root, proof.artifact.path));
   assert.equal(recommend(options).primary.path, f.a.path);
 });
-test('a stale profile cannot claim compatibility for a new skill version', t => {
+test('a stale profile stays visible but cannot become an execution choice', t => {
+  // Drift stays visible, while content review and regenerated declarations are required.
   const f = fixture(t); fs.appendFileSync(f.a.path, '\nNew version');
   const current = readSkillMetadata(f.a.path);
   const result = recommend({ skills: [current], profiles: f.profiles, context: f.context, root: f.root });
-  assert.equal(result.primary, null); assert.equal(result.candidates[0].confidence, 'metadata-only'); assert.ok(result.warnings.some(s => /profile/.test(s)));
+  assert.equal(result.candidates[0].confidence, 'profile-stale');
+  assert.ok(result.warnings.some(s => /Stale profile/.test(s)));
+  assert.equal(result.primary, null);
+  assert.throws(() => f.act('skill-select', {context:f.context, selection:f.selection(current), profiles:f.profiles, audit:{}}), /current capability/);
 });
 test('missing capability permits explicit standard workflow fallback', t => {
   const f = fixture(t);
@@ -191,7 +195,7 @@ test('CLI reports malformed or unavailable skill roots and still recommends usab
   const output = spawnSync(process.execPath, ['skills/auto-dev/scripts/skill-router.mjs','recommend',input], { encoding:'utf8' });
   assert.equal(output.status, 0, output.stderr);
   const result = JSON.parse(output.stdout);
-  assert.equal(result.candidates[0].name,'a'); assert.equal(result.warnings.length,2);
+  assert.equal(result.candidates[0].name,'a'); assert.ok(result.warnings.some(w => w.includes('missing-root'))); assert.ok(result.warnings.some(w => w.includes('Missing description'))); assert.ok(result.warnings.some(w => w.includes('profiles-missing')));
 });
 
 test('evidence prefix cannot hide traversal outside the evidence directory', t => {
@@ -205,7 +209,9 @@ test('delivery-stage failures can be diagnosed without bypassing pending side ef
   fs.writeFileSync(path.join(f.root,artifact), 'fixture business validation');
   f.select(); f.outcome({result:'passed',category:'quality',progressed:true});
   f.act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fixture check',artifact});
-  f.act('verify'); f.act('evidence', {kind:'business',result:'passed',summary:'fixture validation',artifact}); f.act('deliver');
+  f.act('verify'); f.act('evidence', {kind:'business',result:'passed',summary:'fixture validation',artifact});
+  f.act('evidence', {kind:'review',result:'passed',summary:'fixture review',artifact,reviewer:{id:'fixture-reviewer',kind:'subagent',source:'tool',observation:'fixture return'},independent:true,findings:{blocking:0,advisory:0}});
+  f.act('deliver');
   f.act('operation-start', {key:'fixture-operation',operation:'local',target:'fixture destination'});
   f.outcome(); f.outcome();
   assert.throws(() => f.change(f.b), /pending/);
@@ -240,8 +246,8 @@ test('metadata candidates require a reviewed current profile before becoming an 
   const result=recommend({skills:[f.a],context:f.context});
   assert.equal(result.primary,null); assert.deepEqual(result.missing,['api','backend']);
   assert.equal(result.candidates[0].confidence,'metadata-only');
-  assert.throws(()=>f.act('skill-select',{context:f.context,selection:f.selection(f.a)}),/reviewed|profile/);
-  f.select(); assert.equal(f.state.tasks[0].routing.routes[0].selection.primary.confidence,'profile-reviewed');
+  assert.throws(()=>f.act('skill-select',{context:f.context,selection:f.selection(f.a)}),/declaration|profile/);
+  f.select(); assert.equal(f.state.tasks[0].routing.routes[0].selection.primary.confidence,'profile-declared');
 });
 
 test('project experience recognizes the same Windows project through a substituted drive', { skip: process.platform !== 'win32' }, t => {
@@ -259,4 +265,87 @@ test('project experience recognizes the same Windows project through a substitut
     const unmapped = spawnSync('subst', [drive, '/D'], { encoding: 'utf8' });
     assert.equal(unmapped.status, 0, unmapped.stderr || unmapped.error?.message);
   }
+});
+
+test('bundled capability profiles let the router select a skill without per-call profiles', () => {
+  const skillsRoot = path.resolve('skills');
+  const skills = catalog([skillsRoot]);
+  const profiles = loadProfiles(skillsRoot);
+  assert.ok(profiles.length > 0, 'bundled profiles must ship with the package');
+  const result = recommend({ skills, profiles, root: skillsRoot, context: { goal: 'improve a hover animation', needs: ['frontend'], stack: [], phase: 'implementation' } });
+  assert.ok(result.primary, 'a frontend need must resolve to a primary skill');
+  assert.equal(result.primary.confidence, 'profile-declared');
+});
+
+test('an installed tree with only the core skills still routes without throwing', t => {
+  const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'smartbuild-installed-')));
+  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+  const root = path.join(base, 'skills');
+  fs.mkdirSync(root);
+  for (const name of ['auto-dev', 'aoci-workflow']) fs.cpSync(path.join('skills', name), path.join(root, name), { recursive: true });
+  const skills = catalog([root]);
+  const skipped = [];
+  const profiles = loadProfiles(root, { warn: entry => skipped.push(entry) });
+  assert.ok(skipped.every(entry => entry.kind === 'skill-not-installed'), 'missing directories are reported, not thrown');
+  assert.equal(profiles.length, 0, 'profiles for absent skills are dropped');
+  const result = recommend({ skills, profiles, root, context: { goal: 'add login', needs: ['security'], stack: [], phase: 'implementation' } });
+  assert.equal(result.primary, null);
+  assert.deepEqual(result.missing, ['security']);
+});
+
+test('changed skill remains a provisional candidate until its declaration is refreshed', t => {
+  const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'smartbuild-stale-')));
+  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+  const root = path.join(base, 'skills');
+  const folder = path.join(root, 'security-tool');
+  fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(path.join(folder, 'SKILL.md'), '---\nname: security-tool\ndescription: security review\n---\nOriginal body');
+  const before = readSkillMetadata(path.join(folder, 'SKILL.md'));
+  const profiles = [{ path: before.path, sha256: before.sha256, version: before.version, needs: ['security'] }];
+  fs.writeFileSync(path.join(folder, 'SKILL.md'), '---\nname: security-tool\ndescription: security review\n---\nUpdated body from the library');
+  const skills = catalog([root]);
+  const result = recommend({ skills, profiles, root, context: { goal: 'review auth', needs: ['security'], stack: [], phase: 'implementation' } });
+  assert.equal(result.primary, null, 'stale declarations cannot silently authorize selection');
+  assert.equal(result.candidates[0].name, 'security-tool');
+  assert.equal(result.candidates[0].confidence, 'profile-stale');
+  assert.ok(result.warnings.some(warning => /Stale profile/.test(warning)), 'the staleness is reported');
+});
+
+test('F06 CLI defaults to profiles from each root and explicit empty profiles remain empty', t => {
+ const f=fixture(t), roots=[path.join(f.root,'one'),path.join(f.root,'two')];
+ for(const [i,dir] of roots.entries()) {
+  const folder=path.join(dir,'same');fs.mkdirSync(folder,{recursive:true});fs.writeFileSync(path.join(folder,'SKILL.md'),'---\nname: same\ndescription: backend api\n---\n'+i);
+  const skill=readSkillMetadata(path.join(folder,'SKILL.md'));fs.mkdirSync(path.join(dir,'auto-dev/references'),{recursive:true});
+  fs.writeFileSync(path.join(dir,'auto-dev/references/profiles.json'),JSON.stringify({skills:[{dir:'same',name:skill.name,sha256:skill.sha256,version:skill.version,needs:['backend','api']}]}));
+ }
+ const request=path.join(f.root,'request.json');const call=(extra={})=>{fs.writeFileSync(request,JSON.stringify({roots,context:f.context,...extra}));const r=spawnSync(process.execPath,[path.resolve('skills/auto-dev/scripts/skill-router.mjs'),'recommend',request],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);return JSON.parse(r.stdout);};
+ const result=call();assert.ok(result.primary);assert.equal(result.candidates.length,2);assert.notEqual(result.candidates[0].path,result.candidates[1].path);assert.equal(call({profiles:[]}).primary,null);
+});
+test('F07 backend regression never recommends a motion specialist',()=>{
+ const skillsRoot=path.resolve('skills');const result=recommend({skills:catalog([skillsRoot]),profiles:loadProfiles(skillsRoot),context:{goal:'为 Python 后端数据库补回归测试',needs:['testing'],stack:['python'],phase:'testing'}});
+ assert.equal(result.primary,null);assert.deepEqual(result.missing,['testing']);assert.ok(result.standardWorkflow);
+});
+test('F07 explicit-only skill requires an explicit invocation and never implies content review',()=>{
+ const skillsRoot=path.resolve('skills');const skills=catalog([skillsRoot]).filter(s=>s.name==='pick-ui-library');const context={goal:'梳理现有前端分层，不选库',needs:['architecture','frontend'],phase:'planning'};
+ const options={skills,profiles:loadProfiles(skillsRoot),context};assert.equal(recommend(options).primary,null);
+ const invoked=recommend({...options,context:{...context,invokedSkills:['pick-ui-library']}});assert.equal(invoked.primary.name,'pick-ui-library');assert.equal(invoked.primary.confidence,'profile-declared');
+});
+
+import { buildProfiles, output } from '../skills/auto-dev/scripts/build-profiles.mjs';
+test('A07 changed bundled skill cannot inherit name-based capability declarations',t=>{
+ const f=fixture(t),refs=path.join(f.root,'auto-dev/references');fs.mkdirSync(refs,{recursive:true});
+ fs.copyFileSync(path.resolve('skills/auto-dev/references/profile-overrides.json'),path.join(refs,'profile-overrides.json'));
+ fs.mkdirSync(path.join(f.root,'animate'));fs.writeFileSync(path.join(f.root,'animate/SKILL.md'),'---\nname: animate\ndescription: Use for backend database administration only.\n---\nCustomized instructions');
+ const built=buildProfiles(f.root);fs.writeFileSync(path.join(refs,'profiles.json'),output(built));
+ const row=built.find(p=>p.name==='animate');assert.ok(!row.needs.includes('frontend'));assert.ok(!row.domains.includes('web-animation'));assert.equal(row.declaration.status,'needs-review');
+ const result=recommend({skills:catalog([f.root]).filter(s=>s.name==='animate'),profiles:loadProfiles(f.root),context:{goal:'backend database administration',needs:['backend','database'],phase:'implementation'},root:f.root});
+ assert.equal(result.primary,null);assert.ok(result.warnings.some(w=>/animate/.test(w)));
+});
+test('A08 malformed profile rows warn and preserve valid routing entries',t=>{
+ const f=fixture(t),refs=path.join(f.root,'auto-dev/references');fs.mkdirSync(refs,{recursive:true});
+ const valid={file:'a/SKILL.md',name:'a',sha256:f.a.sha256,version:f.a.version,needs:['backend','api']};
+ fs.writeFileSync(path.join(refs,'profiles.json'),JSON.stringify({skills:[null,{file:42},{...valid,needs:'backend'},{...valid,access:{}},valid]}));
+ const warnings=[],profiles=loadProfiles(f.root,{warn:w=>warnings.push(w)});
+ assert.equal(warnings.length,4);assert.equal(profiles.length,1);
+ assert.equal(recommend({skills:[f.a],profiles,context:f.context,root:f.root}).primary.name,'a');
 });

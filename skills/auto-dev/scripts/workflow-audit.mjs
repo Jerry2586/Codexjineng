@@ -11,6 +11,40 @@ export function actorRecord(input) {
   if(actor.source!=='unknown') actor.observation=text(input.observation,'identity tool/runtime observation');
   return actor;
 }
+export function independentReviewer(actor) {
+  return !!actor && ['subagent','human'].includes(actor.kind) && ['tool','runtime'].includes(actor.source)
+    && typeof actor.observation==='string' && !!actor.observation.trim();
+}
+export function reviewWaiver(input,planVersion) {
+  check(input && typeof input==='object','Review exemption requires a waiver with source and reason');
+  return {source:text(input.source,'review waiver source'),reason:text(input.reason,'review waiver reason'),planVersion,at:now()};
+}
+function taskExecutors(task) {
+  return (task.routing?.routes??[]).flatMap(r=>[r.audit?.executor,...r.outcomes.map(o=>o.executor)]).filter(Boolean);
+}
+export function recordReview(state,task,request,root,helpers) {
+  const reviewer=actorRecord(request.reviewer), independent=request.independent===true;
+  check(!independent || independentReviewer(reviewer),'Independent review requires a recorded subagent/human observation');
+  const executors=taskExecutors(task);
+  check(!independent || !executors.some(a=>a.id===reviewer.id),'Independent reviewer cannot be the task executor');
+  const findings=request.findings;
+  check(findings && ['blocking','advisory'].every(k=>Number.isSafeInteger(findings[k])&&findings[k]>=0),'Review requires nonnegative findings counts');
+  // items describes blocking findings; even a zero count must agree with supplied details.
+  check(findings.items===undefined || Array.isArray(findings.items)&&findings.items.length===findings.blocking,'Blocking findings count must match issue details');
+  check(request.result!=='passed' || findings.blocking===0,'Passing review cannot contain blocking findings');
+  if(request.metrics!==undefined) {
+    check(request.metrics && ['before','after'].every(k=>request.metrics[k] && typeof request.metrics[k]==='object' && !Array.isArray(request.metrics[k])),'Review metrics require before/after objects');
+  }
+  const issueIds=[];
+  if(findings.blocking>0) {
+    check(Array.isArray(findings.items)&&findings.items.length===findings.blocking,'Blocking findings require one issue detail per finding');
+    for(const item of findings.items) {
+      auditTransition(state,task,{...item,action:'issue-open',blocking:true,reviewer,independent,artifact:request.artifact},root,helpers);
+      issueIds.push(task.issues.at(-1).id);
+    }
+  }
+  return {reviewer,independent,findings:structuredClone(findings),...(issueIds.length?{issueIds}:{}),...(request.metrics!==undefined?{metrics:structuredClone(request.metrics)}:{})};
+}
 export function selectionAudit(input,hasSkill) {
   check(input && input.compatible===true && typeof input.read==='boolean','Selection audit and compatibility required');
   check(!hasSkill || input.read===true,'Selected skill instructions must be read');
@@ -43,9 +77,15 @@ export function workflowReport(task,root,helpers,{beforeDelivery=false}={}) {
   const acceptance=task.acceptance.map((criterion,index)=>{const record=task.acceptanceResults?.filter(r=>r.planVersion===task.planVersion&&r.criterion===index).at(-1);return {criterion:index,text:criterion,pendingDelivery:record?.result==='pending-delivery'?record.operation:null,valid:(record?.result==='passed'||beforeDelivery&&record?.result==='pending-delivery'&&task.deliveries.includes(record.operation)&&task.authorization?.operations.includes(record.operation))&&currentRecord(task,record,root,helpers)};});
   // Findings survive amendments: changing a plan cannot erase a known defect.
   const issues=(task.issues??[]).map(issue=>({id:issue.id,title:issue.title,blocking:issue.blocking,valid:issue.status==='resolved'&&artifactValid(root,issue.artifact,helpers)&&currentRecord(task,issue.resolution,root,helpers)}));
+  // A clean review must still leave a record: absence and "found nothing" are different states.
+  const reviewRecord=(task.evidence??[]).filter(e=>e.kind==='review'&&e.planVersion===task.planVersion).at(-1);
+  const waiver=task.reviewWaiver;
+  const waived=task.reviewRequired===false && waiver?.planVersion===task.planVersion && !!waiver.source?.trim() && !!waiver.reason?.trim();
+  const review={required:!waived,waiver:waived?waiver:null,record:reviewRecord??null,valid:!!reviewRecord&&reviewRecord.result==='passed'&&reviewRecord.independent===true&&independentReviewer(reviewRecord.reviewer)&&!taskExecutors(task).some(actor=>actor.id===reviewRecord.reviewer.id)&&reviewRecord.findings?.blocking===0&&artifactValid(root,reviewRecord.artifact,helpers)&&reviewRecord.fingerprint===helpers.fingerprint(root,task.watch)};
   const reason=routes.find(r=>!r.valid)?.reason ?? (acceptance.some(a=>!a.valid)?'Acceptance evidence missing, failed, or stale':null)
-    ?? (issues.some(i=>i.blocking&&!i.valid)?'Blocking issue requires repair and current retest':null);
-  return {status:reason?'pending':'ready',ready:!reason,reason,routes,acceptance,issues};
+    ?? (issues.some(i=>i.blocking&&!i.valid)?'Blocking issue requires repair and current retest':null)
+    ?? (review.required&&!review.valid?'Independent review evidence missing, failed, or stale':null);
+  return {status:reason?'pending':'ready',ready:!reason,reason,routes,acceptance,issues,review};
 }
 export function assertWorkflowReady(task,root,helpers,options) {
   const report=workflowReport(task,root,helpers,options);check(report.ready,report.reason);
@@ -63,7 +103,7 @@ export function auditTransition(state,task,request,root,helpers) {
     (task.acceptanceResults??=[]).push({...base(),criterion:request.criterion,result:request.result,...(request.result==='pending-delivery'?{operation:request.operation}:{}),changes:changes(),verification:text(request.verification,'verification'),artifact:helpers.artifact(root,request.artifact)});
   } else if(request.action==='issue-open') {
     const reviewer=actorRecord(request.reviewer);
-    check(!request.independent || reviewer.kind==='subagent'&&reviewer.source==='tool','Independent review requires subagent identity from tool return');
+    check(!request.independent || independentReviewer(reviewer),'Independent review requires subagent identity from tool return');
     check(['critical','high','medium','low'].includes(request.severity),'Invalid issue severity');
     if(request.criterion!==undefined)check(Number.isInteger(request.criterion)&&request.criterion>=0&&request.criterion<task.acceptance.length,'Unknown issue criterion');
     const issues=task.issues??=[];

@@ -2,15 +2,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { STATUS, TERMINAL_STATES, OPERATIONS, isStartCommand, controlCommand, implementationInstruction, validAuthorization, resumeInstruction } from './workflow-contract.mjs';
+export { isStartCommand } from './workflow-contract.mjs';
 import { routeTransition, diagnose } from './skill-router.mjs';
-import { assertStepReady, assertWorkflowReady, auditTransition, workflowReport, recoveryReady } from './workflow-audit.mjs';
+import { assertStepReady, assertWorkflowReady, auditTransition, workflowReport, recoveryReady, recordReview, reviewWaiver } from './workflow-audit.mjs';
 const auditHelpers = {artifact, fingerprint, localPath};
 
 // This records operator-supplied evidence; it cannot certify model comprehension or test truth.
 const FILE = 'auto-dev-state.json';
-const TERMINAL = new Set(['completed', 'cancelled']);
-const STATES = new Set(['recorded', 'queued', 'running', 'paused', 'blocked', 'verifying', 'delivering', ...TERMINAL]);
-const OPS = new Set(['local', 'git', 'ci', 'release', 'install', 'deploy']);
+const TERMINAL = new Set(TERMINAL_STATES);
+const STATES = new Set(Object.keys(STATUS));
+// A deferred task leaves the active queue without being completed or cancelled:
+// it must stay visible and return in a later round, never silently disappear.
+const ACTIVE = task => !TERMINAL.has(task.status) && task.status !== 'deferred';
+const OPS = new Set(OPERATIONS);
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const now = () => new Date().toISOString();
 const insist = (condition, message) => { if (!condition) throw new Error(message); };
@@ -114,26 +119,78 @@ export function usableEvidence(state, task, kind, root, current = true) {
     return true;
   } catch { return false; }
 }
-export function isStartCommand(message) {
-  return typeof message === 'string' && message.trim() === '开始制作';
+function completionBasis(task) {
+  return {planVersion:task.planVersion,scope:task.scope,watch:task.watch,acceptance:task.acceptance,deliveries:task.deliveries,
+    steps:task.steps,routing:task.routing,acceptanceResults:task.acceptanceResults,issues:task.issues,
+    reviewRequired:task.reviewRequired,reviewWaiver:task.reviewWaiver,evidence:task.evidence,operations:task.operations,
+    ...(task.completion?.version===3?{aociRequired:task.aociRequired,cognitionScope:task.cognitionScope,evidenceKinds:task.completion.evidenceKinds}:{})};
 }
-function requireStartCommand(message) {
-  insist(isStartCommand(message), 'Implementation requires the standalone user message: 开始制作');
+function evidenceArtifacts(value,result=[]) {
+  if(value && typeof value==='object') {
+    if(typeof value.path==='string'&&value.path.startsWith('.smartbuild/evidence/')&&value.sha256) result.push(value);
+    else for(const child of Object.values(value))evidenceArtifacts(child,result);
+  }
+  return result;
+}
+function adoptedProofs(task,completedFingerprint,evidenceKinds) {
+  const latest = (records,key) => [...new Map((records??[]).filter(record=>record.planVersion===task.planVersion).map(record=>[key(record),record])).values()];
+  return {
+    evidence:latest(task.evidence,record=>record.kind).filter(record=>!evidenceKinds||evidenceKinds.includes(record.kind)),
+    acceptance:latest(task.acceptanceResults,record=>record.criterion),
+    routes:latest(task.routing?.routes,record=>record.step).map(route=>route.outcomes.at(-1)?.artifact),
+    issues:(task.issues??[]).filter(issue=>issue.blocking).map(issue=>({finding:issue.artifact,retest:issue.resolution?.artifact})),
+    operations:latest(task.operations.filter(op=>op.status==='succeeded'&&op.fingerprint===completedFingerprint),record=>record.operation)
+  };
+}
+export function completionReport(task,root) {
+  if(task.status!=='completed')return {valid:false,current:false,status:'not-completed'};
+  const saved=task.completion;
+  if(!saved)return {valid:false,current:false,status:'historical-unverified',reason:'Historical completion requires explicit reopen and verification'};
+  try {
+    insist([1,2,3].includes(saved.version)&&saved.planVersion===task.planVersion&&saved.basisDigest===sha(JSON.stringify(completionBasis(task))),'Completion records changed; reopen for verification');
+    // Preserve the complete audit record digest, but bind files only to adopted proofs.
+    // Version 1 snapshots retain their original verification semantics.
+    const proofs=saved.version===1?completionBasis(task):adoptedProofs(task,saved.fingerprint,saved.version===3?saved.evidenceKinds:undefined);
+    for(const proof of evidenceArtifacts(proofs))insist(artifact(root,proof.path).sha256===proof.sha256,'Completion evidence artifact changed');
+    return {valid:true,current:saved.fingerprint===fingerprint(root,task.watch),status:'historical-verified',fingerprint:saved.fingerprint,at:saved.at};
+  }catch(error){return {valid:false,current:false,status:'historical-unverified',reason:error.message};}
+}
+function roundBasis(state,root) {
+  const completed=state.tasks.filter(t=>t.status==='completed');
+  return {tasks:state.tasks.map(t=>({id:t.id,status:t.status,planVersion:t.planVersion,completion:t.completion??null})),
+    fingerprint:completed.length?fingerprint(root,[...new Set(completed.flatMap(t=>t.watch))]):null};
+}
+export function roundReport(state,root) {
+  const record=state.round.verifications?.at(-1);
+  try {
+    insist(record?.result==='passed','Final round verification missing or failed');
+    insist(!state.tasks.some(t=>t.operations.some(op=>op.status==='pending')),'Reconcile pending operations');
+    for(const task of state.tasks.filter(t=>t.status==='completed'))insist(completionReport(task,root).valid,'Historical completion invalid; reopen '+task.id);
+    insist(record.basisDigest===sha(JSON.stringify(roundBasis(state,root))),'Final round regression stale');
+    insist(artifact(root,record.artifact.path).sha256===record.artifact.sha256,'Final round regression artifact changed');
+    return {valid:true,record};
+  }catch(error){return {valid:false,reason:error.message,record:record??null};}
 }
 function authorized(task, operation = 'local') {
-  insist(task.authorization?.gate === 'exact-start-v1' && isStartCommand(task.authorization.message), 'Task lacks exact-start authorization');
+  insist(validAuthorization(task.authorization, task.scope), 'Task lacks valid user authorization');
   insist(task.authorization?.planVersion === task.planVersion && task.authorization.operations.includes(operation), `Task lacks current ${operation} authorization`);
 }
-function cognitionReady(state, task, root, current = true) {
+function cognitionProofKinds(state, task, root, current = true) {
   const delivery = task.evidence.filter(e => e.kind === 'cognition_delivery' && e.planVersion === task.planVersion).at(-1);
   const alignment = task.evidence.filter(e => e.kind === 'cognition_alignment' && e.planVersion === task.planVersion).at(-1);
   if (usableEvidence(state, task, 'cognition_delivery', root, current)
       && (!current || delivery.receipt.identity === alignment?.receipt.identity)
-      && (task.cognitionScope !== 'system' || delivery.receipt.fullSystemReliable === true)) return true;
+      && (task.cognitionScope !== 'system' || delivery.receipt.fullSystemReliable === true)) return ['cognition_delivery'];
   const limit = task.evidence.filter(e => e.kind === 'cognition_limit' && e.planVersion === task.planVersion).at(-1);
   return task.cognitionScope === 'bounded' && usableEvidence(state, task, 'cognition_limit', root, current)
     && usableEvidence(state, task, 'source_review', root, current)
-    && (!current || limit.receipt.identity === alignment?.receipt.identity);
+    && (!current || limit.receipt.identity === alignment?.receipt.identity) ? ['cognition_limit','source_review'] : [];
+}
+function cognitionReady(state,task,root,current=true) { return cognitionProofKinds(state,task,root,current).length>0; }
+function completionEvidenceKinds(state,task,root) {
+  return [...new Set(['business',...task.deliveries,
+    ...(workflowReport(task,root,auditHelpers).review.required?['review']:[]),
+    ...(task.aociRequired?['cognition_alignment',...cognitionProofKinds(state,task,root,false)]:[])])];
 }
 function ready(state, task, root) {
   insist(!state.paused, 'Project is paused');
@@ -177,9 +234,10 @@ export function transition(original, request, root) {
       const item = { id: `R${String(state.nextId++).padStart(3, '0')}`, round: state.round.id,
         title: text(request.title, 'title'), scope: text(request.scope, 'scope'), acceptance: strings(request.acceptance, 'acceptance'),
         watch, dependsOn, conflicts: strings(request.conflicts ?? [], 'conflicts', true), deliveries,
-        aociRequired: request.aociRequired === true, cognitionScope: request.cognitionScope ?? 'bounded', status: 'recorded', workflowVersion: 1, planVersion: 1, authorization: null,
+        aociRequired: request.aociRequired === true, cognitionScope: request.cognitionScope ?? 'bounded', reviewRequired: request.reviewRequired !== false, status: 'recorded', workflowVersion: 1, planVersion: 1, authorization: null,
         steps: [], step: 0, nextAction: 'Clarify scope and authorization', evidence: [], operations: [], history: [] };
       insist(['bounded', 'system'].includes(item.cognitionScope), 'Invalid cognition scope');
+       if (!item.reviewRequired) { item.reviewWaiver=reviewWaiver(request.reviewWaiver,item.planVersion); item.history.push({at:now(),reviewWaiver:structuredClone(item.reviewWaiver)}); }
       state.tasks.push(item);
       state.lock ??= item.id; // Reserves queue order; it does not grant permission to execute.
       break;
@@ -188,9 +246,18 @@ export function transition(original, request, root) {
       insist(task && !TERMINAL.has(task.status), 'Cannot authorize closed task');
       const operations = strings(request.operations, 'operations');
       insist(operations.every(op => OPS.has(op)), 'Unknown operation');
-      requireStartCommand(request.message);
-      task.authorization = { gate: 'exact-start-v1', message: request.message, source: text(request.source, 'authorization source'), operations, planVersion: task.planVersion, at: now() };
+      const instruction = implementationInstruction(request, task.scope);
+      task.authorization = { ...instruction, source: text(request.source, 'authorization source'), operations, planVersion: task.planVersion, at: now() };
       if (task.status === 'recorded') task.status = 'queued';
+      break;
+    }
+    case 'review-policy': {
+      insist(task && !TERMINAL.has(task.status), 'Cannot change review policy of a closed task');
+      insist(typeof request.required === 'boolean', 'Review policy required must be boolean');
+      const record = reviewWaiver({source:request.source,reason:request.reason}, task.planVersion);
+      task.reviewRequired = request.required;
+      if (request.required) delete task.reviewWaiver; else task.reviewWaiver = record;
+      task.history.push({at:now(),reviewPolicy:{required:request.required,...record}});
       break;
     }
     case 'amend': {
@@ -201,6 +268,8 @@ export function transition(original, request, root) {
       if (request.aociRequired !== undefined) { insist(typeof request.aociRequired === 'boolean', 'aociRequired must be boolean'); task.aociRequired = request.aociRequired; }
       if (request.cognitionScope !== undefined) { insist(['bounded', 'system'].includes(request.cognitionScope), 'Invalid cognition scope'); task.cognitionScope = request.cognitionScope; }
       task.planVersion++; task.authorization = null; task.steps = []; task.step = 0;
+      // The revised plan must start at step one, never resume an earlier execution phase.
+      delete task.resumeStatus; delete task.pauseStatus;
       task.status = state.lock === task.id ? 'blocked' : 'recorded'; task.nextAction = 'Review revised scope and authorization';
       break;
     }
@@ -219,17 +288,18 @@ export function transition(original, request, root) {
       task.steps = structuredClone(request.steps); task.step = 0; break;
     case 'start': {
       insist(task && ['queued', 'recorded'].includes(task.status), 'Task is not queued');
-      const head = state.tasks.find(t => !TERMINAL.has(t.status));
+      const head = state.tasks.find(ACTIVE);
       insist(head?.id === task.id && (!state.lock || state.lock === task.id), 'Cannot skip queue head or steal lock');
       ready(state, task, root); state.lock = task.id; task.status = 'running'; task.step = 1;
       task.checkpoint = { fingerprint: fingerprint(root, task.watch), at: now(), session: state.session };
       task.nextAction = task.steps[0].title; break;
     }
     case 'handoff': {
-      owned(); requireStartCommand(request.message);
+      owned();
       insist(!state.paused && task.status === 'blocked', 'Handoff requires a blocked task, not a paused or running task');
       insist(!task.operations.some(op => op.status === 'pending'), 'Resolve pending operations before handoff');
       const target = taskFor(state, request.target);
+      implementationInstruction(request, target.scope);
       insist(target.id !== task.id && ['queued', 'recorded'].includes(target.status), 'Handoff target must be queued');
       ready(state, target, root);
       const record = { at: now(), handoff: { from: task.id, to: target.id, message: request.message, source: text(request.source, 'handoff source'), reason: reason() } };
@@ -276,7 +346,8 @@ export function transition(original, request, root) {
       }
       break;
     case 'resume': {
-      insist(state.paused, 'Project is not paused'); requireStartCommand(request.message);
+      insist(state.paused, 'Project is not paused');
+      resumeInstruction(request, state.lock ? taskFor(state, state.lock).scope : '');
       const resumeSource = text(request.source, 'resume instruction');
       if (state.lock) authorized(taskFor(state, state.lock));
       state.paused = false;
@@ -324,14 +395,18 @@ export function transition(original, request, root) {
       state.phaseBasis = { artifact: artifact(root, request.artifact), reason: reason(), source: text(request.source, 'phase decision source'), at: now() };
       state.phase = request.phase; break;
     }
-    case 'display': insist(typeof request.enabled === 'boolean', 'enabled must be boolean'); state.display = request.enabled; break;
+    case 'display':
+      insist(typeof request.enabled === 'boolean', 'enabled must be boolean');
+      insist(controlCommand(request.message,request.origin) === (request.enabled ? '开发助手' : '关闭开发助手'), 'Display requires the standalone user command');
+      state.display = request.enabled; break;
     case 'resolve-conflicts':
       insist(task && !TERMINAL.has(task.status), 'Task must be active'); task.history.push({ at: now(), conflictResolution: reason() }); task.conflicts = []; break;
     case 'evidence': {
       insist(task && task.status !== 'cancelled' && state.round.status === 'open', 'Evidence requires an open-round task');
       const kind = request.kind;
-      insist(['business', 'source_review', 'cognition_delivery', 'cognition_alignment', 'cognition_limit', ...OPS].includes(kind), 'Unknown evidence kind');
+      insist(['business', 'review', 'source_review', 'cognition_delivery', 'cognition_alignment', 'cognition_limit', ...OPS].includes(kind), 'Unknown evidence kind');
       insist(['passed', 'failed'].includes(request.result), 'Evidence result must be passed or failed');
+      const review = kind === 'review' ? recordReview(state, task, request, root, auditHelpers) : {};
       if (kind.startsWith('cognition_') && request.result === 'passed') {
         const receipt = request.receipt;
         insist(receipt && same(canonicalRoot(receipt.projectRoot), canonicalRoot(root)), 'AOCI runtime project mismatch');
@@ -348,7 +423,7 @@ export function transition(original, request, root) {
       }
       task.evidence.push({ kind, result: request.result, summary: text(request.summary, 'evidence summary'),
         artifact: artifact(root, request.artifact), fingerprint: fingerprint(root, task.watch), planVersion: task.planVersion,
-        session: state.session, at: now(), ...(request.receipt ? { receipt: structuredClone(request.receipt) } : {}) });
+        session: state.session, at: now(), ...review, ...(request.receipt ? { receipt: structuredClone(request.receipt) } : {}) });
       break;
     }
     case 'verify': active(); insist(['running', 'verifying'].includes(task.status), 'Task not in verification'); task.status = 'verifying'; break;
@@ -377,8 +452,25 @@ export function transition(original, request, root) {
       }
       insist(!task.operations.some(op => op.status === 'pending'), 'Reconcile pending external operation');
       task.status = 'completed'; task.completedAt = now(); task.nextAction = 'Retain until round archive';
-      state.lock = state.tasks.find(t => !TERMINAL.has(t.status))?.status === 'blocked' ? state.tasks.find(t => !TERMINAL.has(t.status)).id : null;
+      task.completion = {version:3,planVersion:task.planVersion,fingerprint:fingerprint(root,task.watch),evidenceKinds:completionEvidenceKinds(state,task,root),at:task.completedAt};
+      task.completion.basisDigest=sha(JSON.stringify(completionBasis(task)));
+      insist(completionReport(task,root).valid,'Completion evidence invalid; reconcile adopted proofs before completing');
+      const next = state.tasks.find(ACTIVE);
+      state.lock = next ? next.id : null;
       break;
+    case 'reopen': {
+      insist(state.round.status==='open' && task?.status==='completed','Reopen requires a completed task in the open round');
+      insist(!task.operations.some(op=>op.status==='pending'),'Reconcile pending operation before reopen');
+      task.history.push({at:now(),reopened:{previousStatus:task.status,reason:reason(),source:text(request.source,'reopen source'),completion:structuredClone(task.completion??null),authorization:structuredClone(task.authorization),basis:structuredClone(completionBasis(task))}});
+      // A new plan generation invalidates every old acceptance, review and delivery proof.
+      // Keep those records and the full completion basis as historical evidence.
+      task.planVersion++; task.authorization=null; task.steps=[];
+      delete task.routing;
+      delete task.completion; delete task.completedAt;
+      task.status='queued'; task.step=0; task.workflowVersion=1; task.nextAction='Reverify scope, routes, acceptance and review';
+      state.tasks=state.tasks.filter(t=>t.id!==task.id);state.tasks.push(task);state.lock??=task.id;
+      break;
+    }
     case 'cancel':
       insist(task && !TERMINAL.has(task.status), 'Task must be active');
       insist(!task.operations.some(op => op.status === 'pending'), 'Reconcile pending operation before cancelling');
@@ -389,22 +481,56 @@ export function transition(original, request, root) {
       const rest = state.tasks.filter(t => t.id !== task.id);
       insist(Number.isInteger(request.position) && request.position >= 1 && request.position <= rest.length + 1, 'Invalid position');
       rest.splice(request.position - 1, 0, task);
-      if (locked && ['running', 'paused', 'verifying', 'delivering', 'blocked'].includes(locked.status)) insist(rest.find(t => !TERMINAL.has(t.status)).id === locked.id, 'Cannot move ahead of running task');
+      if (locked && ['running', 'paused', 'verifying', 'delivering', 'blocked'].includes(locked.status)) insist(rest.find(ACTIVE)?.id === locked.id, 'Cannot move ahead of running task');
       state.tasks = rest;
-      if (!locked || ['recorded', 'queued'].includes(locked.status)) state.lock = rest.find(t => !TERMINAL.has(t.status))?.id ?? null;
+      if (!locked || ['recorded', 'queued'].includes(locked.status)) state.lock = rest.find(ACTIVE)?.id ?? null;
+      break;
+    }
+    case 'defer': {
+      // Deferring only re-orders the queue; it never grants or revokes implementation authority.
+      insist(task && task.status === 'blocked', 'Only a blocked task can be deferred');
+      insist(state.tasks.find(ACTIVE)?.id === task.id, 'Defer requires the blocked queue head');
+      insist(!task.operations.some(op => op.status === 'pending'), 'Reconcile pending operations before deferring');
+      const reasonText = reason();
+      task.history.push({ at: now(), deferred: reasonText }); task.status = 'deferred';
+      task.nextAction = `跨轮延续：${reasonText}`;
+      state.lock = state.tasks.find(ACTIVE)?.id ?? null;
+      (state.round.carryOver ??= []).push(task.id);
+      break;
+    }
+    case 'round-verification': {
+      insist(state.round.status==='open'&&!state.lock&&state.tasks.length&&state.tasks.every(t=>!ACTIVE(t)),'Round has unfinished tasks');
+      insist(!state.tasks.some(t=>t.operations.some(op=>op.status==='pending')),'Reconcile pending operations before round verification');
+      const completed=state.tasks.filter(t=>t.status==='completed');
+      for(const item of completed)insist(completionReport(item,root).valid,'Historical completion requires reopen and verification: '+item.id);
+      insist(['passed','failed'].includes(request.result),'Round verification result must be passed or failed');
+      const expected=completed.flatMap(t=>t.acceptance.map((_,criterion)=>t.id+':'+criterion));
+      insist(Array.isArray(request.coverage)&&request.coverage.length===expected.length,'Final regression coverage must include every completed acceptance criterion');
+      const keys=request.coverage.map(c=>c.id+':'+c.criterion);
+      insist(new Set(keys).size===expected.length&&expected.every(k=>keys.includes(k)),'Incomplete final regression coverage');
+      insist(request.coverage.every(c=>['passed','failed'].includes(c.result)),'Invalid coverage result');
+      insist(request.result!=='passed'||request.coverage.every(c=>c.result==='passed'),'Failed criterion cannot pass final regression');
+      (state.round.verifications??=[]).push({result:request.result,coverage:structuredClone(request.coverage),verification:text(request.verification,'round verification command or tool'),source:text(request.source,'round verification source'),artifact:artifact(root,request.artifact),basisDigest:sha(JSON.stringify(roundBasis(state,root))),at:now(),session:state.session});
       break;
     }
     case 'close-round':
-      insist(!state.lock && state.tasks.length && state.tasks.every(t => TERMINAL.has(t.status)), 'Round has unfinished tasks');
-      for (const item of state.tasks.filter(t => t.status === 'completed')) {
-        verified(state, item, root);
-        for (const kind of item.deliveries) insist(usableEvidence(state, item, kind, root), `Round requires current ${item.id} ${kind} evidence`);
-      }
+      insist(!state.tasks.some(t => t.operations.some(op => op.status === 'pending')), 'Reconcile pending operations before closing round');
+      insist(!state.lock && state.tasks.length && state.tasks.every(t => ACTIVE(t) === false), 'Round has unfinished tasks');
+      const finalReport=roundReport(state,root); insist(finalReport.valid,finalReport.reason);
       state.round.status = 'closed'; state.round.acceptance = { source: text(request.source, 'round acceptance source'), artifact: artifact(root, request.artifact), at: now() }; break;
-    case 'new-round':
+    case 'new-round': {
       insist(state.round.status === 'closed' && !state.paused, 'Close and accept round before archiving');
-      state.archives.push({ ...state.round, tasks: state.tasks }); state.tasks = [];
-      state.round = { id: state.round.id + 1, status: 'open' }; break;
+      const carried = state.tasks.filter(t => t.status === 'deferred').map(t => {
+        t.status = 'blocked'; t.round = state.round.id + 1;
+        t.history.push({ at: now(), carriedOver: state.round.id });
+        return t;
+      });
+      state.archives.push({ ...state.round, tasks: state.tasks.filter(t => t.status !== 'blocked' || !carried.includes(t)) });
+      state.tasks = carried;
+      // Carried work keeps its original id and takes the queue head so it can be unblocked.
+      state.lock = carried[0]?.id ?? null;
+      state.round = { id: state.round.id + 1, status: 'open', carryOver: [] }; break;
+    }
     default: throw new Error(`Unknown action: ${action}`);
   }
   state.revision++; state.updatedAt = now();
@@ -446,7 +572,7 @@ export function initialize(project, name, session) {
   finally { fs.closeSync(fd); fs.unlinkSync(path.join(root, `${FILE}.lock`)); }
 }
 export function summary(state, root) {
-  return { ...state, checks: state.tasks.map(t => ({ id: t.id, workflow: workflowReport(t, root, auditHelpers), routing: t.routing ? diagnose(t, root, fingerprint(root, t.watch)) : null, evidence: Object.fromEntries(['business', 'source_review', 'cognition_delivery', 'cognition_alignment', 'cognition_limit', ...t.deliveries].map(kind => [kind, usableEvidence(state, t, kind, root)])) })) };
+  return { ...state, roundCheck:roundReport(state,root), checks: state.tasks.map(t => ({ id: t.id, completion:completionReport(t,root), workflow: workflowReport(t, root, auditHelpers), routing: t.routing ? diagnose(t, root, fingerprint(root, t.watch)) : null, evidence: Object.fromEntries(['business', 'review', 'source_review', 'cognition_delivery', 'cognition_alignment', 'cognition_limit', ...t.deliveries].map(kind => [kind, usableEvidence(state, t, kind, root)])) })) };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   try {

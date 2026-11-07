@@ -1,0 +1,462 @@
+{
+  "animate": {
+    "needs": [
+      "frontend"
+    ],
+    "phases": [
+      "implementation"
+    ],
+    "domains": [
+      "web-animation"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "generic backend testing",
+      "non-animation architecture"
+    ],
+    "sourceSha256": "b8ede161270458e6ae2e45e8a1985373515d4c63de5568ddb0f9012d7634356c"
+  },
+  "animate-expo": {
+    "needs": [
+      "frontend"
+    ],
+    "stacks": [
+      "react-native",
+      "expo"
+    ],
+    "phases": [
+      "implementation"
+    ],
+    "domains": [
+      "react-native"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "react-native",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "9a01a91701e6563c67677dde6b66ab30f066a5341d42c21a90ba51d99679274a"
+  },
+  "animation-vocabulary": {
+    "needs": [
+      "frontend",
+      "writing"
+    ],
+    "domains": [
+      "web-animation"
+    ],
+    "explicitOnly": false,
+    "access": "read",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "evidence-based report or recommendation"
+    ],
+    "notFor": [
+      "generic backend testing",
+      "non-animation architecture"
+    ],
+    "sourceSha256": "40d2b27adfdfeb0570a9f20e7d0255109d9233c50603878bcd0dcd04c923fd94"
+  },
+  "api-integration": {
+    "needs": [
+      "api",
+      "backend",
+      "testing"
+    ],
+    "phases": [
+      "implementation"
+    ],
+    "domains": [
+      "api"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "6df4f2d1fddc81a91bd65dda2ef265c1a9f53f0c04b1c981d51eac1cd6d2fef3"
+  },
+  "apple-design": {
+    "needs": [
+      "frontend"
+    ],
+    "domains": [
+      "web-ui",
+      "web-animation"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "generic backend testing",
+      "non-animation architecture"
+    ],
+    "sourceSha256": "77bb63b7043bb93aca2ff4ab040c249484eef35682bb6ff7163433c31d30adc7"
+  },
+  "ask-sonner": {
+    "needs": [
+      "frontend"
+    ],
+    "domains": [
+      "toasts"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "39f3ee185b3aa2cf70a689052ff078953ce7ba5915ed7a9391d232e9d4dcf57f"
+  },
+  "backend-contract": {
+    "needs": [
+      "backend",
+      "api",
+      "architecture"
+    ],
+    "phases": [
+      "implementation"
+    ],
+    "domains": [
+      "backend",
+      "api"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "f9202fa12d088a879b3505233362602b78c7fed2727a7f874865a53d4f95e822"
+  },
+  "database-design": {
+    "needs": [
+      "database",
+      "backend"
+    ],
+    "phases": [
+      "implementation"
+    ],
+    "domains": [
+      "database"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "1dfc4ac1a851552e0a9cdbeb1766b8a48a7aadd0f3179d52e196061099fec71a"
+  },
+  "deployment-release": {
+    "needs": [
+      "deployment",
+      "testing"
+    ],
+    "phases": [
+      "release"
+    ],
+    "domains": [
+      "deployment"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "bda8a7f684849d0868e7eb23cca22284c9e9093ef2f3d6d0150cf73a0c589ee3"
+  },
+  "emil-design-eng": {
+    "needs": [
+      "frontend",
+      "product"
+    ],
+    "domains": [
+      "web-ui",
+      "web-animation"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "generic backend testing",
+      "non-animation architecture"
+    ],
+    "sourceSha256": "ffbe68e6007fb42cb8149f089b400a1ca007d59ba23e8948e2be4476f3175939"
+  },
+  "environment-setup": {
+    "needs": [
+      "environment",
+      "deployment"
+    ],
+    "phases": [
+      "implementation"
+    ],
+    "domains": [
+      "environment"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "86e83f6f5ded82a7b1e4f1a2b5cf9c404485f6bec61f0e5e8311ad1e8a8569eb"
+  },
+  "find-animation-opportunities": {
+    "needs": [
+      "frontend",
+      "product"
+    ],
+    "domains": [
+      "web-animation"
+    ],
+    "explicitOnly": false,
+    "access": "read",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "evidence-based report or recommendation"
+    ],
+    "notFor": [
+      "generic backend testing",
+      "non-animation architecture"
+    ],
+    "sourceSha256": "d52a377819b84a71930f0c822cfe2849f40301605a2d5c7eccbfa3b257700df2"
+  },
+  "improve-animations": {
+    "needs": [
+      "frontend",
+      "testing",
+      "performance"
+    ],
+    "domains": [
+      "web-animation"
+    ],
+    "explicitOnly": false,
+    "access": "read",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "evidence-based report or recommendation"
+    ],
+    "notFor": [
+      "generic backend testing",
+      "non-animation architecture"
+    ],
+    "sourceSha256": "73962447464433476343e2c12cd08ab39cc99a9e5f3c118c5fb54ed897574ef6"
+  },
+  "mobile-native": {
+    "needs": [
+      "frontend",
+      "performance"
+    ],
+    "domains": [
+      "mobile-web"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "888b7651d66d66dbac4e72b7c554638eb19bd971d686d6cbdf030a5ef3788f55"
+  },
+  "pick-ui-library": {
+    "needs": [
+      "frontend",
+      "architecture"
+    ],
+    "domains": [
+      "web-ui"
+    ],
+    "explicitOnly": true,
+    "access": "read",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "evidence-based report or recommendation"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "675fdce308683256ed617351a9b74d23457a5fbd0a562d9831b9c764b8c5e682"
+  },
+  "prototype": {
+    "needs": [
+      "product",
+      "frontend"
+    ],
+    "domains": [
+      "prototyping"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "bba39c955eb1871c5a02733976ceec5d0324198e0812e667604756489c89f7b9"
+  },
+  "review-animations": {
+    "needs": [
+      "frontend",
+      "testing"
+    ],
+    "domains": [
+      "web-animation"
+    ],
+    "explicitOnly": false,
+    "access": "read",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "evidence-based report or recommendation"
+    ],
+    "notFor": [
+      "generic backend testing",
+      "non-animation architecture"
+    ],
+    "sourceSha256": "6ff590d29e436766135aa3d137be1fac2a867165c7257fc315b189361f1873af"
+  },
+  "security-baseline": {
+    "needs": [
+      "security",
+      "backend",
+      "architecture"
+    ],
+    "phases": [
+      "implementation"
+    ],
+    "domains": [
+      "security"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "439025082227c988527c6975d6b4149e73d9c1ae05ac985543336cee17e4a099"
+  },
+  "write-swift": {
+    "needs": [
+      "frontend"
+    ],
+    "stacks": [
+      "swift"
+    ],
+    "domains": [
+      "swift"
+    ],
+    "explicitOnly": false,
+    "access": "write",
+    "inputs": [
+      "current task scope",
+      "swift",
+      "current source and constraints"
+    ],
+    "outputs": [
+      "scoped implementation and relevant verification"
+    ],
+    "notFor": [
+      "unrelated domains"
+    ],
+    "sourceSha256": "16a4b6adb74e338e55e704ce5753ad54d825438b8a63930eeaede9f3c04c9447"
+  }
+}

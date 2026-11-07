@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { catalog, readSkillEntry } from './skill-catalog.mjs';
+import { inferDomains, PROFILE_FIELDS, profileReviewed } from './capability-contract.mjs';
 import { actorRecord, selectionAudit } from './workflow-audit.mjs';
 
 const check = (ok, message) => { if (!ok) throw new Error(message); };
@@ -34,6 +35,9 @@ export function normalizeContext(input) {
   check(input && typeof input === 'object', 'context required');
   const value = { goal: text(input.goal, 'goal'), needs: list(input.needs, 'needs'), stack: list(input.stack),
     phase: text(input.phase ?? 'any', 'phase').toLowerCase(), tools: list(input.tools), operations: list(input.operations ?? ['local']) };
+  value.domains = list(input.domains ?? inferDomains(value.goal, value.stack, value.needs), 'domains');
+  value.invokedSkills = list(input.invokedSkills, 'invokedSkills');
+  value.readOnly = input.readOnly === true;
   check(value.needs.length > 0, 'needs required');
   check(value.operations.every(op => ['local','git','ci','release','install','deploy'].includes(op)), 'Unknown operation');
   return value;
@@ -75,6 +79,39 @@ function experience(state, root, context, skill) {
   }
   return Math.max(-2, Math.min(2, value));
 }
+// Bundled profiles are generated, not hand-written per call: without them every
+// recommendation degrades to metadata-only and nothing is ever selected.
+// Missing or stale profiles remain diagnosable candidates; they never authorize automatic selection.
+export function loadProfiles(skillsRoot, { warn = () => {} } = {}) {
+  const file = path.resolve(skillsRoot, 'auto-dev/references/profiles.json');
+  if (!fs.existsSync(file)) { warn({ kind: 'profiles-missing', file }); return []; }
+  let stored;
+  try { stored = JSON.parse(fs.readFileSync(file, 'utf8')); check(Array.isArray(stored.skills), 'profiles.skills must be an array'); }
+  catch (error) { warn({ kind: 'profiles-invalid', file, reason: error.message }); return []; }
+  const learned = [];
+  for (const [index,profile] of stored.skills.entries()) {
+    try {
+      check(profile && typeof profile==='object' && !Array.isArray(profile),'Profile must be an object');
+      const relative = profile.file !== undefined ? text(profile.file,'profile.file') : text(profile.dir,'profile.dir') + '/SKILL.md';
+      check(typeof profile.sha256==='string' && /^[a-f0-9]{64}$/.test(profile.sha256),'Invalid profile digest');
+      text(profile.version,'profile.version');
+      for(const key of ['needs','domains','excludeDomains','stacks','phases','tools','operations','inputs','outputs','conflicts','notFor'])list(profile[key], 'profile.'+key);
+      check(profile.access===undefined || ['read','write','unspecified'].includes(profile.access),'Invalid profile access');
+      check(profile.explicitOnly===undefined || typeof profile.explicitOnly==='boolean','Invalid explicitOnly');
+      for(const key of ['declaration','review'])check(profile[key]==null || typeof profile[key]==='object'&&!Array.isArray(profile[key]),'Invalid profile.'+key);
+      const entry = path.resolve(skillsRoot, relative), rel = path.relative(path.resolve(skillsRoot), entry);
+      if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || relative.includes('\\')) { warn({ kind: 'profile-path-invalid', name: profile.name }); continue; }
+      if (!fs.existsSync(entry)) { warn({ kind: 'skill-not-installed', name: profile.name, dir: profile.dir }); continue; }
+      const actual = fs.realpathSync(entry), boundary = path.relative(fs.realpathSync(skillsRoot), actual);
+      if (boundary.startsWith('..') || path.isAbsolute(boundary)) { warn({kind:'profile-path-invalid',name:profile.name}); continue; }
+      check(!learned.some(p=>identity(p.path)===identity(actual)),'Duplicate capability profile');
+      learned.push({ path: actual, sha256: profile.sha256, version: profile.version,
+        ...Object.fromEntries(PROFILE_FIELDS.filter(key => profile[key] !== undefined).map(key => [key, profile[key]])) });
+    } catch(error) { warn({kind:'profile-invalid',file,index,reason:error.message}); }
+  }
+  return learned;
+}
+
 export function recommend({ skills, context: input, profiles = [], state = null, root }) {
   const context = normalizeContext(input);
   check(Array.isArray(skills) && Array.isArray(profiles), 'skills and profiles must be arrays');
@@ -88,17 +125,26 @@ export function recommend({ skills, context: input, profiles = [], state = null,
     const matches = profiles.filter(p => typeof p.path === 'string' && identity(p.path) === identity(skill.path));
     check(matches.length <= 1, 'Duplicate capability profiles for a skill');
     let profile = matches[0];
-    if (profile && (profile.sha256 !== skill.sha256 || profile.version !== skill.version)) { warnings.push(`Stale profile ignored: ${skill.name}`); profile = null; }
-    let needs, conflicts = [], reason = '';
+    let needs, conflicts = [], reason = '', staleProfile = false;
     // Bundled orchestrators coordinate specialists; incidental domain mentions do not make them specialists.
     if (!profile && ['auto-dev','aoci-workflow'].includes(skill.name)) {
       excluded.push({name: skill.name, path: skill.path, reason: 'Coordinator or integration workflow requires an explicit task capability profile'}); continue;
     }
     if (profile) {
+      // Content changes invalidate the declaration until regeneration and actual selection review.
+      if (profile.sha256 !== skill.sha256 || profile.version !== skill.version || profile.declaration?.status === 'needs-review') {
+        staleProfile = true;
+        warnings.push(`Stale profile: ${skill.name} (candidate only; regenerate and read changed content)`);
+      }
       needs = list(profile.needs, 'profile.needs');
       const stacks = list(profile.stacks), phases = list(profile.phases), tools = list(profile.tools), ops = list(profile.operations);
       conflicts = list(profile.conflicts);
-      if (stacks.length && !stacks.some(s => context.stack.includes(s))) reason = 'Incompatible or unknown stack';
+      const domains = list(profile.domains), exclusions = list(profile.excludeDomains);
+      if ((profile.explicitOnly || /only runs when explicitly invoked|仅.*点名/i.test(skill.description)) && !context.invokedSkills.includes(skill.name.toLowerCase()) && !context.invokedSkills.includes(identity(skill.path).toLowerCase())) reason = 'Explicit invocation required';
+      else if (domains.length && !domains.some(domain => context.domains.includes(domain))) reason = 'Incompatible or unknown domain';
+      else if (exclusions.some(domain => context.domains.includes(domain))) reason = 'Excluded task domain';
+      else if (context.readOnly && profile.access === 'write') reason = 'Read-only task cannot use a source-writing skill';
+      else if (stacks.length && !stacks.some(s => context.stack.includes(s))) reason = 'Incompatible or unknown stack';
       else if (phases.length && !phases.includes(context.phase)) reason = 'Incompatible or unknown phase';
       else if (tools.some(tool => !context.tools.includes(tool))) reason = 'Missing required tool';
       else if (ops.some(op => !context.operations.includes(op))) reason = 'Operation outside available authorization';
@@ -112,23 +158,24 @@ export function recommend({ skills, context: input, profiles = [], state = null,
     const historyScore = experience(state, root, context, skill);
     const namedCapability = matched.some(n => terms[n]?.test(skill.name));
     const namedPhase = context.phase !== 'any' && skill.name.toLowerCase().includes(context.phase);
-    candidates.push({ ...skill, matched, conflicts, confidence: profile ? 'profile-reviewed' : 'metadata-only',
-      score: matched.length * 10 + (profile ? 6 : 0) + (namedCapability ? 2 : 0) + (namedPhase ? 1 : 0) + historyScore,
-      reasons: [`Matches: ${matched.join(', ')}`, ...(namedCapability ? ['Skill name identifies the requested domain'] : []), ...(namedPhase ? ['Skill name matches current phase'] : []), profile ? 'Version-bound capability profile' : 'Metadata suggests relevance; read full skill and verify compatibility',
+    candidates.push({ ...skill, matched, conflicts, confidence: profile ? (staleProfile ? 'profile-stale' : profileReviewed(profile, skill) ? 'profile-reviewed' : 'profile-declared') : 'metadata-only',
+      score: matched.length * 10 + (profile ? 6 : 0) + (namedCapability ? 2 : 0) + (namedPhase ? 1 : 0) + historyScore - (staleProfile ? 1 : 0),
+      reasons: [`Matches: ${matched.join(', ')}`, ...(namedCapability ? ['Skill name identifies the requested domain'] : []), ...(namedPhase ? ['Skill name matches current phase'] : []), profile ? (staleProfile ? 'Outdated declaration; regenerate before selection' : 'Version-bound declaration; content reading and compatibility audit still required') : 'Metadata suggests relevance; read full skill and verify compatibility',
         ...(historyScore ? [`Same-project observed results: ${historyScore > 0 ? '+' : ''}${historyScore}`] : [])] });
   }
   candidates.sort((a,b) => b.score - a.score || a.name.localeCompare(b.name, 'en') || a.path.localeCompare(b.path, 'en'));
   const selected = [], covered = new Set();
   const conflictsWith = (a,b) => a.conflicts.includes(b.name.toLowerCase()) || a.conflicts.includes(identity(b.path).toLowerCase());
   for (const skill of candidates) {
-    if (skill.confidence !== 'profile-reviewed') continue;
+    // A current declaration is a proposal. Execution still requires a separate reading audit.
+    if (!['profile-reviewed', 'profile-declared'].includes(skill.confidence)) continue;
     if (selected.length === 3) break;
     if (selected.some(s => conflictsWith(s,skill) || conflictsWith(skill,s))) continue;
     if (!skill.matched.some(n => !covered.has(n))) continue;
     selected.push(skill); skill.matched.forEach(n => covered.add(n));
   }
   return { context, contextKey: contextKey(context), primary: selected[0] ?? null, support: selected.slice(1),
-    missing: context.needs.filter(n => !covered.has(n)), candidates: candidates.slice(0,5), excluded, warnings,
+    missing: context.needs.filter(n => !covered.has(n)), standardWorkflow: context.needs.some(n => !covered.has(n) && ['testing','architecture','performance','security'].includes(n)) ? { name: '通用回归、审查与重构流程', reference: 'auto-dev/references/general-quality.md', status: 'available-not-executed' } : null, candidates: candidates.slice(0,5), excluded, warnings,
     fallback: selected.length ? null : candidates.length ? 'Review candidate instructions and provide current capability profiles; otherwise use an explicit standard workflow.' : 'Use a documented standard workflow for the missing capabilities; do not fabricate a specialist.' };
 }
 export function diagnose(task, root, fingerprint = null) {
@@ -156,7 +203,7 @@ function validateSelection(request, context) {
   skills.forEach(skillCurrent);
   const result = recommend({ skills, context, profiles: request.profiles ?? [] });
   check(result.candidates.length === skills.length, 'Selection capability or compatibility mismatch');
-  check(result.candidates.every(s => s.confidence === 'profile-reviewed'), 'Selected skills require a reviewed current capability profile');
+  check(result.candidates.every(s => ['profile-reviewed', 'profile-declared'].includes(s.confidence)), 'Selected skills require a current capability declaration and a separate content audit');
   check(result.primary || skills.length === 0, 'No eligible primary');
   // An explicit order is allowed, but incompatible pairs must not be combined.
   for (const a of result.candidates) for (const b of result.candidates) if (a !== b) {
@@ -230,7 +277,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     check(Array.isArray(input.roots) && input.roots.length, 'roots must contain skill directories');
     const discoveryWarnings = [];
     const skills = catalog(input.roots, input.libraryFile, { onError: failure => discoveryWarnings.push(`${failure.path}: ${failure.reason}`) });
-    const result = recommend({ skills, profiles: input.profiles, context: input.context, root, state });
+    const profileRoots = [...new Set(input.roots.map(p => identity(p)))];
+    const profiles = input.profiles ?? profileRoots.flatMap(p => loadProfiles(p, { warn: warning => discoveryWarnings.push(JSON.stringify(warning)) }));
+    const result = recommend({ skills, profiles, context: input.context, root, state });
     result.warnings.push(...discoveryWarnings);
     console.log(JSON.stringify(result, null, 2));
   } catch (error) { console.error(error.message); process.exitCode = 1; }

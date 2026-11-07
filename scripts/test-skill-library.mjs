@@ -201,3 +201,44 @@ test('cleanup failure after commit is recovered by finishing the committed trans
   assert.equal(result.interrupted, true); assert.equal(listLibrary(f.options).skills[0].installedCommit, commit);
   assert.equal(recoverLibrary(f.options).status, 'completed'); assert.equal(fs.readFileSync(path.join(f.installed('alpha'), 'data.txt'), 'utf8'), 'two');
 });
+
+function copyFixture(from, to) {
+  fs.mkdirSync(to, { recursive: true });
+  for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
+    const src = path.join(from, entry.name), dst = path.join(to, entry.name);
+    if (entry.isDirectory()) copyFixture(src, dst); else fs.copyFileSync(src, dst);
+  }
+}
+// F08: execute real entry points and real Git updates, including non-ASCII paths.
+test('profile CLI runs from a Chinese path and honors its separate output argument', t => {
+  const f = fixture(t), skills = path.join(f.root, '中文 技能');
+  fs.mkdirSync(skills);
+  copyFixture(path.resolve('skills/auto-dev'), path.join(skills, 'auto-dev'));
+  copyFixture(f.repo + '/skills/alpha', path.join(skills, 'alpha'));
+  const out = path.join(f.root, '独立 档案.json');
+  const r = spawnSync(process.execPath, [path.join(skills, 'auto-dev/scripts/build-profiles.mjs'), skills, out], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr); assert.ok(fs.existsSync(out), 'CLI must write its requested output');
+  assert.ok(JSON.parse(fs.readFileSync(out, 'utf8')).skills.some(p => p.name === 'alpha'));
+});
+test('add, update and rollback refresh profiles without marking an unchanged core as locally edited', t => {
+  const f = fixture(t);
+  fs.cpSync(path.resolve('skills/auto-dev'), path.join(f.skillsRoot, 'auto-dev'), { recursive: true });
+  scanLibrary(f.options, [f.skillsRoot]);
+  f.add();
+  const profile = () => JSON.parse(fs.readFileSync(path.join(f.skillsRoot, 'auto-dev/references/profiles.json'), 'utf8')).skills.find(p => p.name === 'alpha');
+  const first = profile(); assert.ok(first, 'add must generate a matching profile');
+  f.skill('alpha', 'version two'); f.commit('change skill');
+  const report = f.update(['alpha']); assert.equal(report.results[0].status, 'updated');
+  assert.notEqual(profile().sha256, first.sha256);
+  rollbackSkill(f.options, 'alpha', report.results[0].backup);
+  assert.equal(profile().sha256, first.sha256);
+  assert.equal(listLibrary(f.options).skills.find(p => p.name === 'auto-dev').localModified, false);
+});
+
+test('A06 repeated Git blobs are bounded by expanded bytes before writing and leave no staging residue', t => {
+ const f=fixture(t);const bytes=Buffer.alloc(17*1024*1024,97);
+ f.write('skills/alpha/one.bin',bytes);f.write('skills/alpha/two.bin',bytes);f.commit('duplicated large blob');
+ assert.throws(()=>f.add(),/32 MiB|size/i);
+ assert.equal(fs.existsSync(f.installed('alpha')),false);
+ const staging=path.join(f.options.library,'staging');assert.deepEqual(fs.readdirSync(staging),[]);
+});

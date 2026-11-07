@@ -22,6 +22,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Fetch original repository
         run: |
           git remote add upstream https://github.com/emilkowalski/skills.git
@@ -48,6 +52,8 @@ jobs:
             README.md \
             LICENSE \
             skills/auto-dev skills/aoci-workflow \
+            skills/backend-contract skills/database-design skills/api-integration \
+            skills/security-baseline skills/environment-setup skills/deployment-release \
             SMARTBUILD.md VERSION CHANGELOG.md UPSTREAM.md \
             scripts/ensure-smartbuild-readme.mjs \
             scripts/install-smartbuild.ps1 \
@@ -55,13 +61,20 @@ jobs:
             scripts/test-auto-dev-functional.mjs \
             scripts/test-auto-dev-behavior.mjs scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-install-smartbuild.ps1 \
             scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs \
+            scripts/test-panel.mjs scripts/golden scripts/test-audit-regressions.mjs scripts/test-workflow-contract.mjs scripts/test-doctor.mjs \
             scripts/restore-smartbuild.ps1 scripts/smartbuild-files.ps1 \
             .github/workflows/upstream-sync.yml \
             .github/workflows/validate-smartbuild.yml
           node scripts/ensure-smartbuild-readme.mjs
           git add --all
-          git diff --cached --exit-code HEAD -- README.md LICENSE skills/auto-dev skills/aoci-workflow
-          node --test scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs
+          git diff --cached --exit-code HEAD -- README.md LICENSE \
+            skills/auto-dev skills/aoci-workflow \
+            skills/backend-contract skills/database-design skills/api-integration \
+            skills/security-baseline skills/environment-setup skills/deployment-release
+          # Handwritten core is verified before regenerating only capability declarations.
+          node skills/auto-dev/scripts/build-profiles.mjs skills
+          git add -- skills/auto-dev/references/profiles.json
+          node --test scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs scripts/test-panel.mjs scripts/test-audit-regressions.mjs scripts/test-workflow-contract.mjs scripts/test-doctor.mjs
           node scripts/validate-smartbuild.mjs
           node scripts/test-auto-dev-functional.mjs
           node scripts/test-auto-dev-behavior.mjs --self-test

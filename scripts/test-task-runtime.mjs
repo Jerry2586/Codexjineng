@@ -31,8 +31,12 @@ function fixture(t, options = {}) {
   const cognition = (extra = {}) => { proof('cognition_delivery', { receipt: { ...receipt, ...extra } }); proof('cognition_alignment', { receipt }); };
   const prepare = () => { add(options); authorize('R001', options.deliveries ?? ['local']); plan('R001'); };
   const start = () => act('start', { id: 'R001' });
-  const finish = () => { act('verify', { id: 'R001' }); proof('business'); act('deliver', { id: 'R001' }); proof('local'); act('complete', { id: 'R001' }); };
-  return { root, act, add, plan, authorize, proof, audit, receipt, cognition, prepare, start, finish, get state() { return state; } };
+  const review = (id='R001') => act('evidence', { id, kind: 'review', result: 'passed', summary: 'independent review complete',
+    artifact: '.smartbuild/evidence/result.txt',
+    reviewer: { id: 'fixture-reviewer', kind: 'subagent', source: 'tool', observation: 'fixture subagent return' },
+    independent: true, findings: { blocking: 0, advisory: 0 } });
+  const finish = () => { act('verify', { id: 'R001' }); proof('business'); review(); act('deliver', { id: 'R001' }); proof('local'); act('complete', { id: 'R001' }); };
+  return { root, act, add, plan, authorize, proof, review, audit, receipt, cognition, prepare, start, finish, get state() { return state; } };
 }
 
 test('scope authorization is explicit; reserving the first task is not execution', t => {
@@ -58,7 +62,7 @@ test('a running plan cannot be silently replaced', t => {
 });
 test('pause persists focus; display toggle does not resume; resume detects external edits', t => {
   const f = fixture(t); f.prepare(); f.start(); f.act('pause', { nextAction: 'Continue app' });
-  f.act('display', { enabled: false }); assert.equal(f.state.paused, true); assert.equal(f.state.lock, 'R001');
+  f.act('display', { enabled: false, message: '关闭开发助手' }); assert.equal(f.state.paused, true); assert.equal(f.state.lock, 'R001');
   assert.throws(() => f.act('checkpoint', { id: 'R001', step: 1, nextAction: 'continue' }), /paused/);
   fs.writeFileSync(path.join(f.root, 'app.txt'), 'external edit'); f.act('resume', { message: '开始制作', source: 'continue original' });
   assert.equal(f.state.tasks[0].status, 'blocked'); assert.match(f.state.tasks[0].nextAction, /external/);
@@ -79,9 +83,10 @@ test('unknown dependency is rejected atomically', t => {
 });
 test('completed tasks survive messages until explicit round acceptance and archive', t => {
   const f = fixture(t); f.prepare(); f.start(); f.finish();
-  f.act('display', { enabled: true }); f.act('context', { session: 'later-message' });
+  f.act('display', { enabled: true, message: '开发助手' }); f.act('context', { session: 'later-message' });
   assert.equal(f.state.tasks[0].status, 'completed'); assert.equal(f.state.lock, null);
   assert.throws(() => f.act('new-round'), /Close/);
+  f.act('round-verification',{result:'passed',source:'fixture test',verification:'final regression',artifact:'.smartbuild/evidence/result.txt',coverage:[{id:'R001',criterion:0,result:'passed'}]});
   f.act('close-round', { source: 'accepted local artifact', artifact: '.smartbuild/evidence/result.txt' });
   f.act('new-round'); assert.equal(f.state.tasks.length, 0); assert.equal(f.state.archives[0].tasks[0].id, 'R001');
   f.add(); assert.equal(f.state.tasks[0].id, 'R002');
@@ -99,7 +104,7 @@ test('source changes and evidence tampering invalidate passed results', t => {
 });
 test('a shared scope changed by a later task requires regression evidence before round close', t => {
   const f = fixture(t); f.prepare(); f.start(); f.finish(); fs.appendFileSync(path.join(f.root, 'app.txt'), 'later task');
-  assert.throws(() => f.act('close-round', { source: 'accept', artifact: '.smartbuild/evidence/result.txt' }), /Business evidence/);
+  assert.throws(() => f.act('close-round', { source: 'accept', artifact: '.smartbuild/evidence/result.txt' }), /round verification|regression/);
 });
 test('wrong repository, CLI-only and partial cognition receipts are rejected', t => {
   const f = fixture(t, { aociRequired: true }); f.prepare();
@@ -140,11 +145,12 @@ test('business success survives maintenance failure, but completion remains bloc
   fs.appendFileSync(path.join(f.root, 'app.txt'), 'implementation'); f.act('verify', { id: 'R001' }); f.proof('business');
   f.proof('cognition_alignment', { result: 'failed' });
   assert.equal(summary(f.state, f.root).checks[0].evidence.business, true);
+  f.review();
   assert.throws(() => f.act('deliver', { id: 'R001' }), /alignment/);
   f.proof('cognition_alignment', { receipt: f.receipt }); f.act('deliver', { id: 'R001' });
 });
 test('pending external operations cannot be repeated or completed before reconciliation', t => {
-  const f = fixture(t, { deliveries: ['local', 'git'] }); f.prepare(); f.start(); f.act('verify', { id: 'R001' }); f.proof('business'); f.act('deliver', { id: 'R001' });
+  const f = fixture(t, { deliveries: ['local', 'git'] }); f.prepare(); f.start(); f.act('verify', { id: 'R001' }); f.proof('business'); f.review(); f.act('deliver', { id: 'R001' });
   f.act('operation-start', { id: 'R001', operation: 'git', key: 'push-1', target: 'fixture remote/ref' });
   assert.throws(() => f.act('operation-start', { id: 'R001', operation: 'git', key: 'push-1', target: 'fixture' }), /pending external operation/);
   assert.throws(() => f.act('operation-start', { id: 'R001', operation: 'git', key: 'push-2', target: 'fixture' }), /pending external operation/);
@@ -154,7 +160,7 @@ test('pending external operations cannot be repeated or completed before reconci
   f.act('complete', { id: 'R001' });
 });
 test('unrequested delivery cannot run with local-only authorization', t => {
-  const f = fixture(t); f.prepare(); f.start(); f.act('verify', { id: 'R001' }); f.proof('business'); f.act('deliver', { id: 'R001' });
+  const f = fixture(t); f.prepare(); f.start(); f.act('verify', { id: 'R001' }); f.proof('business'); f.review(); f.act('deliver', { id: 'R001' });
   assert.throws(() => f.act('operation-start', { id: 'R001', operation: 'deploy', key: 'x', target: 'prod' }), /authorization/);
 });
 test('phase changes require evidence and adjacent progress, never task completion', t => {
@@ -177,25 +183,25 @@ test('directory fingerprints detect additions and deletions, ignoring runtime bo
 });
 test('disk transactions reject stale revisions, never steal locks, and preserve old state on error', t => {
   const f = fixture(t); initialize(f.root, 'Fixture', 'session-1');
-  transact(f.root, { action: 'display', enabled: true, expectedRevision: 0 });
+  transact(f.root, { action: 'display', enabled: true, message: '开发助手', expectedRevision: 0 });
   const prior = fs.readFileSync(path.join(f.root, 'auto-dev-state.json'), 'utf8');
-  assert.throws(() => transact(f.root, { action: 'display', enabled: false, expectedRevision: 0 }), /Revision/);
+  assert.throws(() => transact(f.root, { action: 'display', enabled: false, message: '关闭开发助手', expectedRevision: 0 }), /Revision/);
   assert.equal(fs.readFileSync(path.join(f.root, 'auto-dev-state.json'), 'utf8'), prior);
   fs.writeFileSync(path.join(f.root, 'auto-dev-state.json.lock'), 'other writer');
-  assert.throws(() => transact(f.root, { action: 'display', enabled: false, expectedRevision: 1 }), /EEXIST/);
+  assert.throws(() => transact(f.root, { action: 'display', enabled: false, message: '关闭开发助手', expectedRevision: 1 }), /EEXIST/);
   assert.equal(fs.readFileSync(path.join(f.root, 'auto-dev-state.json.lock'), 'utf8'), 'other writer');
 });
 test('legacy ledger and copied checkout identity cannot be silently replaced', t => {
   const f = fixture(t); fs.writeFileSync(path.join(f.root, 'auto-dev-ledger.md'), 'existing');
   assert.throws(() => initialize(f.root, 'Fixture', 'session-1'), /Legacy/);
   const altered = { ...f.state, project: { ...f.state.project, root: os.tmpdir() } };
-  assert.throws(() => transition(altered, { action: 'display', enabled: true, expectedRevision: 0 }, f.root), /identity/);
+  assert.throws(() => transition(altered, { action: 'display', enabled: true, message: '开发助手', expectedRevision: 0 }, f.root), /identity/);
 });
 test('CLI init/show/apply persist actual state without a service', t => {
   const f = fixture(t); const script = path.resolve('skills/auto-dev/scripts/task-runtime.mjs');
   const invoke = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', windowsHide: true });
   assert.equal(invoke('init', f.root, 'Fixture', 'session-1').status, 0);
-  fs.writeFileSync(path.join(f.root, 'request.json'), JSON.stringify({ action: 'display', enabled: true, expectedRevision: 0 }));
+  fs.writeFileSync(path.join(f.root, 'request.json'), JSON.stringify({ action: 'display', enabled: true, message: '开发助手', expectedRevision: 0 }));
   assert.equal(invoke('apply', f.root, path.join(f.root, 'request.json')).status, 0);
   const shown = invoke('show', f.root); assert.equal(shown.status, 0); assert.equal(JSON.parse(shown.stdout).display, true);
   assert.equal(readState(f.root).revision, 1);
@@ -217,13 +223,14 @@ test('AOCI probe never infers MCP delivery from CLI or index file presence', t =
 
 const invalidStartMessages = [undefined, null, 123, '', '执行', '开始执行', '继续执行', '做吧', '按这个做', '可以', '确认', '继续', '恢复', '开始制作。', '请开始制作', '开始制作 R001', '开始 制作', '“开始制作”', '\x60开始制作\x60', '\x60\x60\x60\n开始制作\n\x60\x60\x60', '> 开始制作', '开始制作\n新需求', '开始制作\u200b'];
 for (const message of invalidStartMessages) {
-  test('non-command cannot authorize or resume: '+JSON.stringify(message), t => {
+  test('unassessed text cannot authorize and only explicit continuation can resume: '+JSON.stringify(message), t => {
     const f=fixture(t); f.add(); f.plan('R001'); const before=structuredClone(f.state);
-    assert.throws(()=>f.act('authorize',{id:'R001',operations:['local'],source:'source says 开始制作',message}), /standalone/);
+    assert.throws(()=>f.act('authorize',{id:'R001',operations:['local'],source:'source says 开始制作',message}), /instruction|standalone|message|Quoted/i);
     assert.deepEqual(f.state,before); assert.throws(f.start,/authorization/);
     f.authorize(); f.start(); f.act('pause',{nextAction:'original checkpoint'}); const paused=structuredClone(f.state);
-    assert.throws(()=>f.act('resume',{source:'continue original',message}),/standalone/);
-    assert.deepEqual(f.state,paused); assert.equal(f.state.lock,'R001');
+    if (['继续','恢复','继续执行'].includes(message)) { f.act('resume',{source:'continue original',message}); assert.equal(f.state.paused,false); }
+    else { assert.throws(()=>f.act('resume',{source:'continue original',message}),/instruction|standalone|message|Quoted/i); assert.deepEqual(f.state,paused); }
+    assert.equal(f.state.lock,'R001');
   });
 }
 test('standalone command trims only outer whitespace and preserves resume evidence', t=>{
@@ -236,16 +243,16 @@ test('standalone command trims only outer whitespace and preserves resume eviden
 });
 test('legacy free-form authorization cannot bypass start, resume or continuation',t=>{
  const f=fixture(t);f.prepare(); const auth=f.state.tasks[0].authorization; delete auth.gate; delete auth.message;
- assert.throws(f.start,/exact-start authorization/);
+ assert.throws(f.start,/valid user authorization/);
  f.authorize();f.start();f.act('pause',{nextAction:'checkpoint'}); delete f.state.tasks[0].authorization.gate;
- assert.throws(()=>f.act('resume',{message:'开始制作',source:'user'}),/exact-start authorization/);
+ assert.throws(()=>f.act('resume',{message:'开始制作',source:'user'}),/valid user authorization/);
  assert.equal(f.state.paused,true);
 });
 
 test('rejected gate leaves the persisted ledger and task lock unchanged',t=>{
  const f=fixture(t); f.prepare(); f.start(); f.act('pause',{nextAction:'checkpoint'});
  const file=path.join(f.root,'auto-dev-state.json');fs.writeFileSync(file,JSON.stringify(f.state));const before=fs.readFileSync(file,'utf8');
- assert.throws(()=>transact(f.root,{action:'resume',expectedRevision:f.state.revision,source:'user',message:'继续执行'}),/standalone/);
+ assert.throws(()=>transact(f.root,{action:'resume',expectedRevision:f.state.revision,source:'user',message:'> 继续执行'}),/Quoted/);
  assert.equal(fs.readFileSync(file,'utf8'),before);assert.equal(fs.existsSync(file+'.lock'),false);
  assert.equal(readState(f.root).lock,'R001'); assert.equal(readState(f.root).paused,true);
 });
@@ -265,13 +272,13 @@ test('explicit handoff keeps a blocked task and its checkpoint while starting in
   assert.equal(previous.history.at(-1).handoff.to, 'R002');
   f.act('verify', { id: 'R002' }); f.audit('R002');
   for (const kind of ['business', 'local']) f.act('evidence', { id: 'R002', kind, result: 'passed', summary: 'fixture', artifact: '.smartbuild/evidence/result.txt' });
-  f.act('deliver', { id: 'R002' }); f.act('complete', { id: 'R002' });
+  f.review('R002'); f.act('deliver', { id: 'R002' }); f.act('complete', { id: 'R002' });
   assert.equal(f.state.lock, 'R001'); assert.equal(f.state.tasks.find(t => t.id === 'R001').status, 'blocked');
 });
 test('handoff cannot bypass running work, pause, authorization, dependencies or pending operations', t => {
   for (const condition of ['running', 'paused', 'unauthorized', 'dependency', 'pending']) {
     const f = fixture(t); f.prepare(); f.start();
-    if (condition === 'pending') { f.act('verify', { id: 'R001' }); f.proof('business'); f.act('deliver', { id: 'R001' }); f.act('operation-start', { id: 'R001', key: 'pending-1', operation: 'local', target: 'fixture' }); }
+    if (condition === 'pending') { f.act('verify', { id: 'R001' }); f.proof('business'); f.review(); f.act('deliver', { id: 'R001' }); f.act('operation-start', { id: 'R001', key: 'pending-1', operation: 'local', target: 'fixture' }); }
     if (condition !== 'running') f.act('block', { id: 'R001', reason: 'Fixture block' });
     if (condition === 'paused') f.act('pause', { nextAction: 'wait' });
     f.add({ title: 'Second', dependsOn: condition === 'dependency' ? ['R001'] : [] });
@@ -279,5 +286,57 @@ test('handoff cannot bypass running work, pause, authorization, dependencies or 
     f.plan('R002');
     assert.throws(() => f.act('handoff', { id: 'R001', target: 'R002', message: '开始制作', source: 'fixture', reason: 'fixture' }));
     assert.equal(f.state.lock, 'R001');
+  }
+});
+
+test('a blocked queue head can be deferred so the round and queue keep moving', t => {
+  const f = fixture(t); f.prepare(); f.start();
+  f.act('block', { id: 'R001', reason: 'awaiting external MCP service' });
+  f.add({ title: 'Second local task', scope: 'app.txt only', acceptance: ['observable result'], watch: ['app.txt'] });
+  assert.throws(() => f.act('start', { id: 'R002' }), /skip queue|steal lock/);
+  assert.throws(() => f.act('defer', { id: 'R002', reason: 'wrong head' }), /blocked/);
+  f.act('defer', { id: 'R001', reason: 'awaiting external MCP service' });
+  assert.equal(f.state.tasks[0].status, 'deferred');
+  assert.equal(f.state.lock, 'R002');
+  assert.deepEqual(f.state.round.carryOver, ['R001']);
+  f.authorize('R002'); f.plan('R002'); f.act('start', { id: 'R002' }); f.act('verify', { id: 'R002' }); f.audit('R002');
+  for (const kind of ['business', 'local']) f.act('evidence', { id: 'R002', kind, result: 'passed', summary: 'fixture', artifact: '.smartbuild/evidence/result.txt' });
+  f.review('R002'); f.act('deliver', { id: 'R002' }); f.act('complete', { id: 'R002' });
+  f.act('round-verification',{result:'passed',source:'fixture test',verification:'final regression',artifact:'.smartbuild/evidence/result.txt',coverage:[{id:'R002',criterion:0,result:'passed'}]});
+  f.act('close-round', { source: 'fixture round acceptance', artifact: '.smartbuild/evidence/result.txt' });
+  f.act('new-round');
+  const carried = f.state.tasks.find(task => task.id === 'R001');
+  assert.ok(carried, 'a deferred task must return in the next round with its original id');
+  assert.equal(carried.round, 2);
+  assert.equal(carried.status, 'blocked');
+  assert.equal(f.state.archives.length, 1);
+  assert.equal(f.state.archives[0].tasks.some(task => task.id === 'R001'), false);
+});
+
+test('deferred tasks never count as completed and cannot be started directly', t => {
+  const f = fixture(t); f.prepare(); f.start(); f.act('block', { id: 'R001', reason: 'external dependency' });
+  f.act('defer', { id: 'R001', reason: 'external dependency' });
+  assert.throws(() => f.act('start', { id: 'R001' }), /not queued/);
+  assert.throws(() => f.act('complete', { id: 'R001' }), /lock/);
+});
+
+test('amended blocked task restarts from its new plan instead of stale resume phase', t => {
+  for (const {phase, paused} of ['running', 'verifying', 'delivering'].flatMap(phase => [false, true].map(paused => ({phase, paused})))) {
+    const f = fixture(t); f.prepare(); f.start();
+    if (phase !== 'running') f.act('verify', { id: 'R001' });
+    if (phase === 'delivering') { f.proof('business'); f.review(); f.act('deliver', { id: 'R001' }); }
+    f.act('block', { id: 'R001', reason: 'source change requires replan' });
+    if (paused) f.act('pause', { nextAction: 'replan after pause' });
+    f.act('amend', { id: 'R001', scope: 'revised app task', acceptance: ['reverified result'], watch: ['app.txt'], reason: 'explicit revised scope' });
+    f.authorize(); f.plan('R001');
+    if (paused) {
+      assert.equal(f.state.paused, true);
+      f.act('resume', { message: '开始制作', source: 'explicit fixture resume' });
+    } else f.act('unblock', { id: 'R001', reason: 'new scope authorized and planned' });
+    assert.equal(f.state.tasks[0].status, 'queued', phase);
+    assert.equal(f.state.tasks[0].step, 0);
+    f.start();
+    assert.equal(f.state.tasks[0].status, 'running');
+    assert.equal(f.state.tasks[0].step, 1);
   }
 });

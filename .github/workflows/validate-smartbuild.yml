@@ -22,7 +22,7 @@ jobs:
           node-version: 22
 
       - name: Run task runtime scenarios
-        run: node --test scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs
+        run: node --test scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs scripts/test-panel.mjs scripts/test-audit-regressions.mjs scripts/test-workflow-contract.mjs scripts/test-doctor.mjs
 
       - name: Validate SmartBuild current version
         run: node scripts/validate-smartbuild.mjs
@@ -46,7 +46,7 @@ jobs:
         with:
           node-version: 22
       - name: Verify runtime and skill library on Windows
-        run: node --test scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs
+        run: node --test scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs scripts/test-panel.mjs scripts/test-audit-regressions.mjs scripts/test-workflow-contract.mjs scripts/test-doctor.mjs
       - name: Verify installed skills and backup behavior
         shell: pwsh
         run: ./scripts/test-install-smartbuild.ps1

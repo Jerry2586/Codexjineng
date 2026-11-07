@@ -1,0 +1,674 @@
+{
+  "schemaVersion": 2,
+  "generatedBy": "build-profiles.mjs",
+  "assurance": "declarations-only; not execution or review coverage",
+  "skills": [
+    {
+      "dir": "animate",
+      "file": "animate/SKILL.md",
+      "name": "animate",
+      "sha256": "b8ede161270458e6ae2e45e8a1985373515d4c63de5568ddb0f9012d7634356c",
+      "version": "2ca1ca338f039e474987df678dcb358d428c31ec157f109784d7d5f83e881106",
+      "needs": [
+        "frontend"
+      ],
+      "domains": [
+        "web-animation"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "generic backend testing",
+        "non-animation architecture"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null,
+      "phases": [
+        "implementation"
+      ]
+    },
+    {
+      "dir": "animate-expo",
+      "file": "animate-expo/SKILL.md",
+      "name": "animate-expo",
+      "sha256": "9a01a91701e6563c67677dde6b66ab30f066a5341d42c21a90ba51d99679274a",
+      "version": "fddde84f709a3e336d9ab8be6de31f82601da5344fc1973bf1042dc966b31d81",
+      "needs": [
+        "frontend"
+      ],
+      "domains": [
+        "react-native"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "react-native",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null,
+      "stacks": [
+        "react-native",
+        "expo"
+      ],
+      "phases": [
+        "implementation"
+      ]
+    },
+    {
+      "dir": "animation-vocabulary",
+      "file": "animation-vocabulary/SKILL.md",
+      "name": "animation-vocabulary",
+      "sha256": "40d2b27adfdfeb0570a9f20e7d0255109d9233c50603878bcd0dcd04c923fd94",
+      "version": "6171959893aaa53655fe283fb968513ec363309f32ab9bdc89eab9f777eea58a",
+      "needs": [
+        "frontend",
+        "writing"
+      ],
+      "domains": [
+        "web-animation"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "read",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "evidence-based report or recommendation"
+      ],
+      "notFor": [
+        "generic backend testing",
+        "non-animation architecture"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "api-integration",
+      "file": "api-integration/SKILL.md",
+      "name": "api-integration",
+      "sha256": "6df4f2d1fddc81a91bd65dda2ef265c1a9f53f0c04b1c981d51eac1cd6d2fef3",
+      "version": "bcf59ae9feedc3953128676e34d8d3b874e855a298f690b2ec3abb3386ddcba2",
+      "needs": [
+        "api",
+        "backend",
+        "testing"
+      ],
+      "domains": [
+        "api"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null,
+      "phases": [
+        "implementation"
+      ]
+    },
+    {
+      "dir": "apple-design",
+      "file": "apple-design/SKILL.md",
+      "name": "apple-design",
+      "sha256": "77bb63b7043bb93aca2ff4ab040c249484eef35682bb6ff7163433c31d30adc7",
+      "version": "05c32a12d7c2076d77545cf889bc518af4da97b48acb952ea06cdd6eeb0b5de1",
+      "needs": [
+        "frontend"
+      ],
+      "domains": [
+        "web-ui",
+        "web-animation"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "generic backend testing",
+        "non-animation architecture"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "ask-sonner",
+      "file": "ask-sonner/SKILL.md",
+      "name": "ask-sonner",
+      "sha256": "39f3ee185b3aa2cf70a689052ff078953ce7ba5915ed7a9391d232e9d4dcf57f",
+      "version": "1535b560478b4eef51a77b36f91a4f1e3194edcf64260bbcc1eeabf16a9da579",
+      "needs": [
+        "frontend"
+      ],
+      "domains": [
+        "toasts"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "backend-contract",
+      "file": "backend-contract/SKILL.md",
+      "name": "backend-contract",
+      "sha256": "f9202fa12d088a879b3505233362602b78c7fed2727a7f874865a53d4f95e822",
+      "version": "7316b81e9e9ffda335b1a5a1e17d6d96d1f8c9970affeb502c8bda1721f5b9ba",
+      "needs": [
+        "backend",
+        "api",
+        "architecture"
+      ],
+      "domains": [
+        "backend",
+        "api"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null,
+      "phases": [
+        "implementation"
+      ]
+    },
+    {
+      "dir": "database-design",
+      "file": "database-design/SKILL.md",
+      "name": "database-design",
+      "sha256": "1dfc4ac1a851552e0a9cdbeb1766b8a48a7aadd0f3179d52e196061099fec71a",
+      "version": "c657d295cfa98d044b55d60cb25a25d611ff1d31a4af077139173f3aa11e7c74",
+      "needs": [
+        "database",
+        "backend"
+      ],
+      "domains": [
+        "database"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null,
+      "phases": [
+        "implementation"
+      ]
+    },
+    {
+      "dir": "deployment-release",
+      "file": "deployment-release/SKILL.md",
+      "name": "deployment-release",
+      "sha256": "bda8a7f684849d0868e7eb23cca22284c9e9093ef2f3d6d0150cf73a0c589ee3",
+      "version": "dace0ba6f9f2c512cbf4693f0fcf8f0cb6f5f2aa640505d338fd6cbc9b1d21a8",
+      "needs": [
+        "deployment",
+        "testing"
+      ],
+      "domains": [
+        "deployment"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null,
+      "phases": [
+        "release"
+      ]
+    },
+    {
+      "dir": "emil-design-eng",
+      "file": "emil-design-eng/SKILL.md",
+      "name": "emil-design-eng",
+      "sha256": "ffbe68e6007fb42cb8149f089b400a1ca007d59ba23e8948e2be4476f3175939",
+      "version": "21dfe7b37b8cf5fe5eea0c9ea4f391cb04f3fb19d2743d8581b44a64dd8eb633",
+      "needs": [
+        "frontend",
+        "product"
+      ],
+      "domains": [
+        "web-ui",
+        "web-animation"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "generic backend testing",
+        "non-animation architecture"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "environment-setup",
+      "file": "environment-setup/SKILL.md",
+      "name": "environment-setup",
+      "sha256": "86e83f6f5ded82a7b1e4f1a2b5cf9c404485f6bec61f0e5e8311ad1e8a8569eb",
+      "version": "78b242c3ddf96c28aadb6bded0bd8b5ff0b1614d85ba51a0f5fbb8489f87f981",
+      "needs": [
+        "environment",
+        "deployment"
+      ],
+      "domains": [
+        "environment"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null,
+      "phases": [
+        "implementation"
+      ]
+    },
+    {
+      "dir": "find-animation-opportunities",
+      "file": "find-animation-opportunities/SKILL.md",
+      "name": "find-animation-opportunities",
+      "sha256": "d52a377819b84a71930f0c822cfe2849f40301605a2d5c7eccbfa3b257700df2",
+      "version": "a4b5415afbedb84ded8a6be3a7a25bb4e13afafff0a33b1dbc583c3827481947",
+      "needs": [
+        "frontend",
+        "product"
+      ],
+      "domains": [
+        "web-animation"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "read",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "evidence-based report or recommendation"
+      ],
+      "notFor": [
+        "generic backend testing",
+        "non-animation architecture"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "improve-animations",
+      "file": "improve-animations/SKILL.md",
+      "name": "improve-animations",
+      "sha256": "73962447464433476343e2c12cd08ab39cc99a9e5f3c118c5fb54ed897574ef6",
+      "version": "05de74e7bc0fb8b47a0a98a997da41234851893917f1ec2bc33d64bfd458c9dc",
+      "needs": [
+        "frontend",
+        "testing",
+        "performance"
+      ],
+      "domains": [
+        "web-animation"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "read",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "evidence-based report or recommendation"
+      ],
+      "notFor": [
+        "generic backend testing",
+        "non-animation architecture"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "mobile-native",
+      "file": "mobile-native/SKILL.md",
+      "name": "mobile-native",
+      "sha256": "888b7651d66d66dbac4e72b7c554638eb19bd971d686d6cbdf030a5ef3788f55",
+      "version": "a991ce82e14c810997fabf9529b639bc0429ed736b6f00a84c2ab47214113387",
+      "needs": [
+        "frontend",
+        "performance"
+      ],
+      "domains": [
+        "mobile-web"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "pick-ui-library",
+      "file": "pick-ui-library/SKILL.md",
+      "name": "pick-ui-library",
+      "sha256": "675fdce308683256ed617351a9b74d23457a5fbd0a562d9831b9c764b8c5e682",
+      "version": "3513ca79197e2d586d4d9c865c3db9f70f983d329f8b47a8a803ab11c84aaae8",
+      "needs": [
+        "frontend",
+        "architecture"
+      ],
+      "domains": [
+        "web-ui"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": true,
+      "access": "read",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "evidence-based report or recommendation"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "prototype",
+      "file": "prototype/SKILL.md",
+      "name": "prototype",
+      "sha256": "bba39c955eb1871c5a02733976ceec5d0324198e0812e667604756489c89f7b9",
+      "version": "45aec9453ad09f2cd71a4a31f32e41a5adfadb7d2909f21984d02acb344be07e",
+      "needs": [
+        "product",
+        "frontend"
+      ],
+      "domains": [
+        "prototyping"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "review-animations",
+      "file": "review-animations/SKILL.md",
+      "name": "review-animations",
+      "sha256": "6ff590d29e436766135aa3d137be1fac2a867165c7257fc315b189361f1873af",
+      "version": "18764bacc9807b1128bba03f02b4547afc457f1cfe6b0dd1cd03f0f7fcbfea35",
+      "needs": [
+        "frontend",
+        "testing"
+      ],
+      "domains": [
+        "web-animation"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "read",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "evidence-based report or recommendation"
+      ],
+      "notFor": [
+        "generic backend testing",
+        "non-animation architecture"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
+      "dir": "security-baseline",
+      "file": "security-baseline/SKILL.md",
+      "name": "security-baseline",
+      "sha256": "439025082227c988527c6975d6b4149e73d9c1ae05ac985543336cee17e4a099",
+      "version": "76b9ac0515b0b8afde1af2b2d9cf07085e229d14658bc0358bc784d8aa746e2d",
+      "needs": [
+        "security",
+        "backend",
+        "architecture"
+      ],
+      "domains": [
+        "security"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null,
+      "phases": [
+        "implementation"
+      ]
+    },
+    {
+      "dir": "write-swift",
+      "file": "write-swift/SKILL.md",
+      "name": "write-swift",
+      "sha256": "16a4b6adb74e338e55e704ce5753ad54d825438b8a63930eeaede9f3c04c9447",
+      "version": "69ab6602fadac66e23fe76c7d9d9edd0b0c8cb272f48ce5f9e71bc699333e514",
+      "needs": [
+        "frontend"
+      ],
+      "domains": [
+        "swift"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "write",
+      "inputs": [
+        "current task scope",
+        "swift",
+        "current source and constraints"
+      ],
+      "outputs": [
+        "scoped implementation and relevant verification"
+      ],
+      "notFor": [
+        "unrelated domains"
+      ],
+      "declaration": {
+        "source": "profile-overrides.json",
+        "status": "declared"
+      },
+      "review": null,
+      "stacks": [
+        "swift"
+      ]
+    }
+  ],
+  "coverage": {
+    "covered": [
+      "product",
+      "architecture",
+      "frontend",
+      "backend",
+      "database",
+      "api",
+      "testing",
+      "performance",
+      "security",
+      "environment",
+      "deployment",
+      "writing"
+    ],
+    "gaps": []
+  }
+}

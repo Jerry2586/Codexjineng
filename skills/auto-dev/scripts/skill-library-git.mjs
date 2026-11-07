@@ -80,6 +80,12 @@ function blobs(folder, entries) {
     values.set(oid, data.subarray(end + 1, end + 1 + length));
     offset = end + 1 + length + 1;
   }
+  // Equal blobs are read once, but every destination path consumes disk space.
+  let expandedBytes = 0;
+  for (const entry of entries) {
+    expandedBytes += values.get(entry.oid).length;
+    if (expandedBytes > MAX_BYTES) fail('Skill exceeds the 32 MiB expanded limit');
+  }
   return values;
 }
 export function snapshot(folder, commit, directory, destination, attributionRoot) {
