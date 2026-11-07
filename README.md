@@ -8,7 +8,7 @@
 
 智构开发系统是 Jerry2586 的个人 AI 开发工作台。它把正规开发团队的需求、产品、UI、架构、前后端、数据库、接口、安全、代码审查、测试、环境、发布和维护能力，浓缩到一个人、一个窗口和一个活动需求表里。
 
-**1.1.0 本地制作版：** 包含持久任务运行、AOCI 协同与技能路由；本轮补齐完成快照、独立审查与整轮回归、可恢复安装及只读健康诊断。尚未发布；本次代码请按 [本地运行与安装说明](./SMARTBUILD.md#110-本地运行入口) 使用。
+**1.1.0 正式版（2026-11-07）：** 包含持久任务运行、AOCI 协同与技能路由，补齐完成快照、独立审查与整轮回归、可恢复安装及只读健康诊断。下载与校验文件见 [v1.1.0 Release](https://github.com/Jerry2586/Codexjineng/releases/tag/v1.1.0)，使用方法见 [运行与安装说明](./SMARTBUILD.md#110-运行与安装入口)。
 
 <!-- smartbuild-install:start -->
 ## 安装
@@ -25,6 +25,23 @@ npx skills@latest add Jerry2586/Codexjineng
 npx skills@latest add Jerry2586/Codexjineng --skill auto-dev aoci-workflow -g -y
 ```
 <!-- smartbuild-install:end -->
+
+### 安装固定正式版
+
+上面的 skills 命令跟随仓库当前内容。需要固定到 v1.1.0 时，下载 Release 中的 `smartbuild-1.1.0.zip`，核对 `SHA256SUMS` 后解压；也可以检出版本标签：
+
+```bash
+git clone --branch v1.1.0 --single-branch https://github.com/Jerry2586/Codexjineng.git smartbuild-1.1.0
+cd smartbuild-1.1.0
+```
+
+在解压或检出的目录中运行 Windows 安装器（需要 Node.js 22 或更新版本）：
+
+```powershell
+powershell -NoProfile -File scripts/install-smartbuild.ps1
+```
+
+安装器会备份核心文件并保留已有非核心定制。恢复方式见 [运行与安装说明](./SMARTBUILD.md#110-运行与安装入口)。
 
 ## 五阶段开发骨架
 
@@ -105,7 +122,7 @@ npx skills@latest add Jerry2586/Codexjineng --skill auto-dev aoci-workflow -g -y
 
 ## 版本与更新
 
-- 当前版本：[`v1.1.0`](./VERSION)（本地制作，未发布）；
+- 当前版本：[`v1.1.0`](./VERSION)（正式版，2026-11-07）；
 - 正式版本通过 GitHub Actions 自动校验；
 - 原作者更新每周检查，也可手工启动；
 - 本机安装脚本：[`scripts/install-smartbuild.ps1`](./scripts/install-smartbuild.ps1)。

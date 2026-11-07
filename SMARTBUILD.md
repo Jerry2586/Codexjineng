@@ -188,9 +188,9 @@ node scripts/validate-smartbuild.mjs
 
 Node 测试验证运行器的真实文件行为，离线契约检查测试器自身。Windows 安装与恢复另外运行 `powershell -NoProfile -File scripts/test-install-smartbuild.ps1`。真实模型场景用 `--start-gates-only`、`--ledger-only` 等独立分组；连接失败必须单独报告。账本由本地脚本原子写入，主代理负责按真实用户意图调用；这不是客户端插件存储。
 
-## 1.1.0 本地运行入口
+## 1.1.0 运行与安装入口
 
-本版接入任务状态机、AOCI 协同技能与技能目录扫描；尚未上传远程或发布。执行脚本需要 Node.js 22 或更新版本。现有全局入口继续加载 auto-dev，无需覆盖其它 AGENTS 或 MCP 配置。
+本版接入任务状态机、AOCI 协同技能与技能目录扫描；正式版本对应 Git 标签 `v1.1.0`。安装包、SHA-256 校验文件与文件清单见 [v1.1.0 Release](https://github.com/Jerry2586/Codexjineng/releases/tag/v1.1.0)。执行脚本需要 Node.js 22 或更新版本。现有全局入口继续加载 auto-dev，无需覆盖其它 AGENTS 或 MCP 配置。
 
 本地安装动态发现发行目录中的全部技能（当前21项），包含主控、AOCI及专业能力。核心文件更新前备份；已有非核心定制默认保留，额外自定义文件保留：
 
@@ -198,7 +198,7 @@ Node 测试验证运行器的真实文件行为，离线契约检查测试器自
 powershell -NoProfile -File scripts/install-smartbuild.ps1
 ```
 
-可用 `-Destination <技能库>/auto-dev` 安装到指定目录。只有明确要替换已有专业技能时才加 `-ReplaceCustomizedSkills`。安装器输出技能库外部的备份目录；恢复用 `powershell -NoProfile -File scripts/restore-smartbuild.ps1 -BackupPath "<备份目录>" -Destination "<技能库>/auto-dev"`。恢复会校验路径、原始哈希与安装后内容，遇到后续用户修改则停止覆盖。要使用本次尚未发布的代码，请使用本地安装器；远程安装命令只获取远程已有版本。
+可用 `-Destination <技能库>/auto-dev` 安装到指定目录。只有明确要替换已有专业技能时才加 `-ReplaceCustomizedSkills`。安装器输出技能库外部的备份目录；恢复用 `powershell -NoProfile -File scripts/restore-smartbuild.ps1 -BackupPath "<备份目录>" -Destination "<技能库>/auto-dev"`。恢复会校验路径、原始哈希与安装后内容，遇到后续用户修改则停止覆盖。需要可重复安装时，使用上述 Release 安装包或检出 `v1.1.0` 标签；不指定版本的远程安装命令会跟随仓库当前内容。更新前保留安装器输出的备份，出现问题时按清单恢复；旧版 Release 仍可单独下载。
 
 统一技能库按来源目录发现，无需移动插件托管文件。扫描只列名称、用途、路径、内容摘要和同名冲突，不执行技能；主代理按当前步骤选择并亲读所选技能。
 
