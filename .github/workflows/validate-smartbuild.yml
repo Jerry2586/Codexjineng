@@ -17,6 +17,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run task runtime scenarios
+        run: node --test scripts/test-task-runtime.mjs scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs
+
       - name: Validate SmartBuild current version
         run: node scripts/validate-smartbuild.mjs
 
@@ -30,3 +37,16 @@ jobs:
         run: |
           node scripts/ensure-smartbuild-readme.mjs
           git diff --exit-code -- README.md
+
+  install-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify Git skill library on Windows
+        run: node --test scripts/test-skill-library.mjs scripts/test-skill-router.mjs scripts/test-workflow-audit.mjs
+      - name: Verify installed skills and backup behavior
+        shell: pwsh
+        run: ./scripts/test-install-smartbuild.ps1

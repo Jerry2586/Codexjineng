@@ -1,1 +1,5 @@
 .DS_Store
+
+auto-dev-state.json
+auto-dev-state.json.*
+.smartbuild/

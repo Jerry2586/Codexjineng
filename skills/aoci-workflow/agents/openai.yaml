@@ -1,0 +1,6 @@
+interface:
+  display_name: "AOCI 项目认知协同"
+  short_description: "连接项目认知、任务恢复与变更维护，分别核验交付和对齐证据。"
+  default_prompt: "使用 $aoci-workflow，先核对目标项目和运行时身份，按真实 Guide 完成当前任务所需的认知工作；记录证据与限制，返回原任务锁。"
+policy:
+  allow_implicit_invocation: true

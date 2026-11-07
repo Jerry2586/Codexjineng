@@ -20,6 +20,7 @@
 ## 受保护内容
 
 - `skills/auto-dev/**`
+- `skills/aoci-workflow/**`
 - `README.md`
 - `LICENSE`
 - `SMARTBUILD.md`
@@ -31,7 +32,12 @@
 - `scripts/validate-smartbuild.mjs`
 - `scripts/test-auto-dev-functional.mjs`
 - `scripts/test-auto-dev-behavior.mjs`
+- `scripts/test-task-runtime.mjs`
+- `scripts/test-skill-library.mjs`
+- `scripts/test-install-smartbuild.ps1`
 - `.github/workflows/upstream-sync.yml`
 - `.github/workflows/validate-smartbuild.yml`
 
 上游如果以后出现同名 `skills/auto-dev`，仍以本仓库的智构版本为准；是否吸收其内容必须人工审查，不能自动覆盖。
+
+以上是产品源码的上游同步；用户技能库的逐项 Git 来源与批量更新使用 [技能库维护合同](skills/auto-dev/references/skill-library.md)，不会绕过智构核心保护。
