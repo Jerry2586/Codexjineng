@@ -1,8 +1,8 @@
 ﻿param([Parameter(Mandatory)][string]$BackupPath, [Parameter(Mandatory)][string]$Destination)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'smartbuild-files.ps1')
-$backupFull = [IO.Path]::GetFullPath($BackupPath)
-$destinationFull = [IO.Path]::GetFullPath($Destination).TrimEnd([IO.Path]::DirectorySeparatorChar)
+$backupFull = (Resolve-FileSystemPath $BackupPath)
+$destinationFull = (Resolve-FileSystemPath $Destination).TrimEnd([IO.Path]::DirectorySeparatorChar)
 if ((Split-Path -Leaf $destinationFull) -ne 'auto-dev') { throw '恢复目标必须是 auto-dev 目录。' }
 $libraryRoot = Split-Path -Parent $destinationFull
 Assert-NoLink $backupFull
@@ -50,7 +50,7 @@ Write-JsonNoBom (Join-Path $safetyRoot 'manifest.json') $safety
 foreach ($item in $targets) {
     if ($item.existed) {
         New-Item -ItemType Directory -Path (Split-Path -Parent $item.target) -Force | Out-Null
-        Copy-Item -LiteralPath $item.source -Destination $item.target -Force
+        Copy-FileAtomic $item.source $item.target $item.entry.sha256
         if ((Get-FileHash -LiteralPath $item.target).Hash -ne $item.entry.sha256) { throw '恢复后摘要不匹配。' }
     } elseif (Test-Path -LiteralPath $item.target -PathType Leaf) {
         Assert-Within $item.target $libraryRoot

@@ -115,12 +115,12 @@ function locked(options, callback, recovery = false) {
   const lock = path.join(ctx.root, 'library.lock');
   let fd;
   try { fd = fs.openSync(lock, 'wx'); } catch (e) { if (e.code === 'EEXIST') throw new Error('Library is locked; inspect the owner before removing a stale lock'); throw e; }
-  fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, at: now() }));
   try {
+    fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, at: now() }));
     ctx = openLibrary(options); // Reload after acquiring the lock to avoid a stale read/write race.
     ensure(recovery || !exists(path.join(ctx.root, 'pending.json')), 'Interrupted operation found; run recover before modifying the library');
     return callback(ctx);
-  } finally { fs.closeSync(fd); fs.unlinkSync(lock); }
+  } finally { try { fs.closeSync(fd); } finally { fs.unlinkSync(lock); } }
 }
 function staging(ctx) {
   const root = noLinks(path.join(ctx.root, 'staging'));
@@ -318,6 +318,25 @@ export function rollbackSkill(options, id, backupId) {
     return { id, status: 'rolled-back', from: item.installedCommit, to: next.installedCommit, backup: next.lastOperation };
   });
 }
+function verifyCleanupRemainder(ctx, journal) {
+  const backup = within(ctx.root, path.join(ctx.root, 'backups', journal.id));
+  const manifest = noLinks(path.join(backup, 'manifest.json'));
+  const saved = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+  const originals = within(backup, path.join(backup, 'files'));
+  ensure(saved.id === journal.id && saved.skillId === journal.skillId && saved.previousHash === journal.oldHash && fileHash(originals) === journal.oldHash, 'Recovery backup changed; manual recovery required');
+  const visit = (remaining, original) => {
+    const stat = fs.lstatSync(remaining);
+    ensure(!stat.isSymbolicLink() && exists(original), 'Recovery files changed; manual recovery required');
+    const expected = fs.lstatSync(original);
+    if (stat.isDirectory()) {
+      ensure(expected.isDirectory(), 'Recovery files changed; manual recovery required');
+      for (const name of fs.readdirSync(remaining)) visit(path.join(remaining, name), path.join(original, name));
+    } else {
+      ensure(stat.isFile() && expected.isFile() && digest(fs.readFileSync(remaining)) === digest(fs.readFileSync(original)) && (process.platform === 'win32' || (stat.mode & 0o111) === (expected.mode & 0o111)), 'Recovery files changed; manual recovery required');
+    }
+  };
+  visit(journal.parked, originals);
+}
 export function recoverLibrary(options) {
   return locked(options, ctx => {
     const file = path.join(ctx.root, 'pending.json');
@@ -330,11 +349,15 @@ export function recoverLibrary(options) {
     noLinks(j.target); noLinks(j.stage); noLinks(j.parked);
     // Reject conflicting recovery inputs before removing or replacing installed files.
     const recoveryFiles = [[j.stage, j.newHash], [j.parked, j.oldHash]];
-    for (const [target, expected] of recoveryFiles) if (exists(target)) ensure(fileHash(target) === expected, 'Recovery files changed; manual recovery required');
     const item = ctx.state.skills.find(entry => entry.id === j.skillId);
     const committed = item?.lastOperation === j.id;
+    const verifyRecoveryFile = (target, expected) => {
+      if (committed && target === j.parked && fileHash(target) !== expected) verifyCleanupRemainder(ctx, j);
+      else ensure(fileHash(target) === expected, 'Recovery files changed; manual recovery required');
+    };
+    for (const [target, expected] of recoveryFiles) if (exists(target)) verifyRecoveryFile(target, expected);
     if (committed) {
-      ensure(equal(item.path, j.target) && fileHash(j.target) === j.newHash, 'Installed files changed; manual recovery required');
+      ensure(equal(item.path, j.target) && item.installedHash === j.newHash && fileHash(j.target) === j.newHash, 'Installed files changed; manual recovery required');
     } else {
       if (j.previous) ensure(item && equal(item.path, j.target) && item.installedHash === j.oldHash, 'Registry changed; manual recovery required');
       else ensure(!item, 'Registry changed; manual recovery required');
@@ -351,7 +374,7 @@ export function recoverLibrary(options) {
         fs.renameSync(j.parked, j.target);
       }
     }
-    for (const [target, expected] of recoveryFiles) if (exists(target)) { ensure(fileHash(target) === expected, 'Recovery files changed; manual recovery required'); removeOwned(parent, target); }
+    for (const [target, expected] of recoveryFiles) if (exists(target)) { verifyRecoveryFile(target, expected); removeOwned(parent, target); }
     refreshProfiles(ctx, parent);
     fs.unlinkSync(file);
     return { status: committed ? 'completed' : 'restored', id: j.skillId };

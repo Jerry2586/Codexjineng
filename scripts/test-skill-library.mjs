@@ -264,3 +264,36 @@ test('R003 recovery preflights parked originals before removing the installed ve
   assert.equal(fs.existsSync(journal),true);
  }
 });
+
+test('R004 lock metadata failure releases its handle and owned lock',t=>{
+ const f=fixture(t),open=fs.openSync,write=fs.writeFileSync;let lockFd;
+ fs.openSync=function(target,...args){const fd=open.call(fs,target,...args);if(target===path.join(f.options.library,'library.lock'))lockFd=fd;return fd;};
+ fs.writeFileSync=function(target,...args){if(target===lockFd)throw Object.assign(new Error('Injected lock metadata failure'),{code:'ENOSPC'});return write.call(fs,target,...args);};
+ try{assert.throws(()=>scanLibrary(f.options,[f.skillsRoot]),/Injected lock metadata failure/);}
+ finally{fs.openSync=open;fs.writeFileSync=write;}
+ const held=fs.existsSync(path.join(f.options.library,'library.lock'));let openHandle=false;try{fs.fstatSync(lockFd);openHandle=true;}catch(error){assert.equal(error.code,'EBADF');}
+ if(openHandle)fs.closeSync(lockFd);
+ if(held)fs.unlinkSync(path.join(f.options.library,'library.lock'));
+ assert.equal(held,false);assert.equal(openHandle,false);assert.equal(recoverLibrary(f.options).status,'nothing-to-recover');
+});
+function interruptedCleanup(t){
+ const f=fixture(t);f.add();f.skill('alpha','version two');const commit=f.commit('update with partial cleanup');
+ const remove=fs.rmSync;let injected=false;
+ fs.rmSync=function(target,options){if(!injected&&path.basename(target).startsWith('.skill-library-old-')){injected=true;fs.unlinkSync(path.join(target,'data.txt'));throw Object.assign(new Error('Injected partial cleanup'),{code:'EBUSY'});}return remove.call(fs,target,options);};
+ let report;try{report=f.update();}finally{fs.rmSync=remove;}
+ assert.equal(injected,true);assert.equal(report.interrupted,true);assert.equal(listLibrary(f.options).skills[0].installedCommit,commit);
+ const pending=path.join(f.options.library,'pending.json'),journal=JSON.parse(fs.readFileSync(pending,'utf8'));
+ return {...f,pending,journal};
+}
+test('R004 committed update recovers partially deleted old files and permits the next update',t=>{
+ const f=interruptedCleanup(t),hash=fileHash(f.installed('alpha'));
+ assert.equal(recoverLibrary(f.options).status,'completed');assert.equal(fileHash(f.installed('alpha')),hash);
+ assert.equal(fs.existsSync(f.journal.parked),false);assert.equal(fs.existsSync(f.pending),false);
+ assert.equal(recoverLibrary(f.options).status,'nothing-to-recover');assert.equal(f.update().results[0].status,'current');
+});
+for(const conflict of ['survivor','extra','backup','installed'])test('R004 partial cleanup recovery retains conflicting '+conflict+' files',t=>{
+ const f=interruptedCleanup(t);const target=conflict==='survivor'?path.join(f.journal.parked,'SKILL.md'):conflict==='extra'?path.join(f.journal.parked,'user.txt'):conflict==='backup'?path.join(f.options.library,'backups',f.journal.id,'files/data.txt'):path.join(f.installed('alpha'),'data.txt');
+ fs.writeFileSync(target,'preserve this later change');
+ assert.throws(()=>recoverLibrary(f.options),/changed|recovery/i);
+ assert.equal(fs.readFileSync(target,'utf8'),'preserve this later change');assert.equal(fs.existsSync(f.pending),true);assert.equal(fs.existsSync(f.journal.parked),true);
+});

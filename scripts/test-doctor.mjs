@@ -31,3 +31,29 @@ for (const initialized of [true, false]) test('doctor flags a write lock without
  assert.equal(fs.readFileSync(lock,'utf8'),bytes);assert.deepEqual(fs.readdirSync(root).sort(),before);
  if(initialized)assert.equal(fs.readFileSync(path.join(root,'auto-dev-state.json'),'utf8'),ledger);
 });
+
+for(const destination of ['source','installed']) for(const mode of ['empty','missing-one']) test('R004 doctor detects '+mode+' capability profiles in '+destination,t=>{
+ const root=fixture(t),source=path.join(root,'source'),installed=path.join(root,'installed');
+ fs.cpSync(fileURLToPath(new URL('../skills',import.meta.url)),source,{recursive:true});
+ if(destination==='installed')fs.cpSync(source,installed,{recursive:true});
+ const file=path.join(destination==='source'?source:installed,'auto-dev/references/profiles.json');
+ const stored=JSON.parse(fs.readFileSync(file,'utf8')),removed=mode==='empty'?stored.skills:stored.skills.slice(0,1);
+ assert.ok(removed.length);stored.skills=mode==='empty'?[]:stored.skills.slice(1);fs.writeFileSync(file,JSON.stringify(stored));
+ const before=fs.readFileSync(file,'utf8'),r=doctor(root,{source,...(destination==='installed'?{installed}:{})});
+ const profiles=destination==='source'?r.source.profiles:r.installation.profiles;
+ assert.equal(profiles.status,'needs-attention');assert.equal(r.status,'needs-attention');
+ for(const item of removed)assert.ok(profiles.items.some(p=>p.name===item.name&&p.status==='missing'),item.name);
+ assert.equal(fs.readFileSync(file,'utf8'),before,'diagnostics must remain read-only');
+});
+
+test('R004 unrelated malformed installed metadata does not affect distribution profile coverage', t => {
+ const root=fixture(t),source=path.join(root,'source'),installed=path.join(root,'installed');
+ fs.cpSync(fileURLToPath(new URL('../skills',import.meta.url)),source,{recursive:true}); fs.cpSync(source,installed,{recursive:true});
+ const extra=path.join(installed,'unrelated'); fs.mkdirSync(extra); fs.writeFileSync(path.join(extra,'SKILL.md'),'---\nname: unrelated\n---\nMissing description');
+ const file=path.join(installed,'auto-dev/references/profiles.json'),stored=JSON.parse(fs.readFileSync(file,'utf8'));
+ stored.skills.push({...stored.skills[0],name:'unrelated',dir:'unrelated',file:'unrelated/SKILL.md'}); fs.writeFileSync(file,JSON.stringify(stored));
+ const before=fs.readFileSync(file,'utf8'),report=doctor(root,{source,installed});
+ assert.equal(report.installation.profiles.status,'current'); assert.deepEqual(report.installation.profiles.warnings,[]);
+ assert.ok(!report.installation.profiles.items.some(item=>item.name==='unrelated'));
+ assert.equal(fs.readFileSync(file,'utf8'),before);
+});

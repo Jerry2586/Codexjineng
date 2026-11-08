@@ -194,10 +194,13 @@ function completionEvidenceKinds(state,task,root) {
     ...(workflowReport(task,root,auditHelpers).review.required?['review']:[]),
     ...(task.aociRequired?['cognition_alignment',...cognitionProofKinds(state,task,root,false)]:[])])];
 }
+function dependenciesReady(state, task) {
+  insist(task.dependsOn.every(id => allTasks(state).find(t => t.id === id)?.status === 'completed'), 'Dependencies incomplete or cancelled');
+}
 function ready(state, task, root) {
   insist(!state.paused, 'Project is paused');
   authorized(task);
-  insist(task.dependsOn.every(id => allTasks(state).find(t => t.id === id)?.status === 'completed'), 'Dependencies incomplete or cancelled');
+  dependenciesReady(state, task);
   insist(task.conflicts.length === 0, 'Unresolved conflicts');
   insist(task.steps.length > 0, 'Execution steps required');
   if (task.aociRequired) {
@@ -233,6 +236,7 @@ export function transition(original, request, root) {
   const owned = () => { insist(task && state.lock === task.id, 'Action requires current task lock'); };
   const active = () => {
     owned(); insist(!state.paused && task.status !== 'blocked', 'Task paused or blocked'); authorized(task);
+    dependenciesReady(state, task);
     insist(recoveryReady(state, task, root, auditHelpers), 'Current recovery review required');
     if (task.aociRequired) insist(cognitionReady(state, task, root, false), 'Restore cognition for current session');
   };
@@ -362,11 +366,16 @@ export function transition(original, request, root) {
       insist(state.paused, 'Project is not paused');
       resumeInstruction(request, state.lock ? taskFor(state, state.lock).scope : '');
       const resumeSource = text(request.source, 'resume instruction');
-      if (state.lock) authorized(taskFor(state, state.lock));
+      const lockedTask = state.lock ? taskFor(state, state.lock) : null;
+      const queuedStatus = lockedTask?.status === 'paused' ? lockedTask.pauseStatus : lockedTask?.status;
+      const reserved = lockedTask?.step === 0 && ['recorded', 'queued'].includes(queuedStatus);
+      if (lockedTask && !reserved) authorized(lockedTask);
       state.paused = false;
       if (state.lock) {
         const locked = taskFor(state, state.lock);
         locked.history.push({ at: now(), resume: { message: request.message, source: resumeSource } });
+        // Reserved work has no execution to resume; start retains its authorization and cognition gates.
+        if (reserved) { locked.status = queuedStatus; break; }
         if (fingerprint(root, locked.watch) !== locked.checkpoint?.fingerprint) {
           locked.status = 'blocked'; locked.nextAction = 'Review external workspace changes';
         } else {
@@ -419,6 +428,8 @@ export function transition(original, request, root) {
       const kind = request.kind;
       insist(['business', 'review', 'project_audit', 'text_review', 'source_review', 'cognition_delivery', 'cognition_alignment', 'cognition_limit', ...OPS].includes(kind), 'Unknown evidence kind');
       insist(['passed', 'failed'].includes(request.result), 'Evidence result must be passed or failed');
+      // Diagnostics and cognition preparation remain possible while a prerequisite is unresolved.
+      if (request.result === 'passed' && !kind.startsWith('cognition_')) dependenciesReady(state, task);
       const review = kind === 'review' ? recordReview(state, task, request, root, auditHelpers) : {};
       const quality = Object.hasOwn(QUALITY_SKILLS,kind);
       if(quality) {

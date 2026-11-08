@@ -5,6 +5,7 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {canonicalRoot,readState,summary,fingerprint,roundReport} from './task-runtime.mjs';
 import {catalog,readSkillMetadata} from './skill-catalog.mjs';
 import {loadProfiles} from './skill-router.mjs';
+import {buildProfiles} from './build-profiles.mjs';
 import {validAuthorization,CONTRACT_VERSION} from './workflow-contract.mjs';
 import {probe} from '../../aoci-workflow/scripts/probe-aoci.mjs';
 const defaultSource=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
@@ -21,9 +22,17 @@ function files(root){
  if(fs.lstatSync(root).isSymbolicLink())throw new Error('Linked package root requires review');
  visit(root);return result;
 }
-function profileReport(root,entries){
+function profileReport(root,entries,{restrictToEntries=false}={}){
  const warnings=[],profiles=loadProfiles(root,{warn:value=>warnings.push(value)});
- const items=profiles.map(profile=>{const entry=entries.find(e=>key(e.path)===key(profile.path));return {path:profile.path,name:entry?.name??path.basename(path.dirname(profile.path)),status:!entry?'unmatched':entry.sha256===profile.sha256&&entry.version===profile.version?'current':'stale'};});
+ const included=new Set(entries.map(entry=>key(entry.path)));
+ const items=profiles.filter(profile=>!restrictToEntries||included.has(key(profile.path))).map(profile=>{const entry=entries.find(e=>key(e.path)===key(profile.path));return {path:profile.path,name:entry?.name??path.basename(path.dirname(profile.path)),status:!entry?'unmatched':entry.sha256===profile.sha256&&entry.version===profile.version?'current':'stale'};});
+ try{
+  const present=new Set(items.map(item=>key(item.path)));
+  for(const expected of buildProfiles(root,{entries})){
+   const file=path.resolve(root,expected.file);
+   if(included.has(key(file))&&!present.has(key(file)))items.push({path:file,name:expected.name,status:'missing'});
+  }
+ }catch(error){warnings.push({kind:'profile-coverage-unverified',reason:error.message});}
  return {status:warnings.length||items.some(i=>i.status!=='current')?'needs-attention':'current',items,warnings,meaning:'Capability declarations; semantic review and execution are separate.'};
 }
 function installationReport(source,installed,entries){
@@ -76,8 +85,7 @@ export function doctor(project,{source=defaultSource,installed,aociBinary}={}){
   for(const entry of entries.filter(e=>e.kind!=='role')){const folder=path.join(installedRoot,path.relative(sourceRoot,path.dirname(entry.path)));if(!fs.existsSync(folder))continue;
    try {installedEntries.push(readSkillMetadata(path.join(folder,'SKILL.md')));}catch(error){errors.push({path:folder,reason:error.message});}
   }
-  const relevant=loadProfiles(installedRoot).filter(profile=>entries.some(entry=>path.relative(sourceRoot,entry.path)===path.relative(installedRoot,profile.path)));
-  const report=profileReport(installedRoot,installedEntries);report.items=report.items.filter(item=>relevant.some(profile=>key(profile.path)===key(item.path)));report.status=report.warnings.length||report.items.some(i=>i.status!=='current')?'needs-attention':'current';installation.profiles=report;
+  installation.profiles=profileReport(installedRoot,installedEntries,{restrictToEntries:true});
  }
  const ledger=ledgerReport(root),aoci=probe(root,aociBinary);
  const aociIssue=!!aociBinary&&(aoci.cli!=='available'||!aoci.contractMatch);

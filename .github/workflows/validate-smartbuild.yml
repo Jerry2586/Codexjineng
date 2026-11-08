@@ -50,3 +50,15 @@ jobs:
       - name: Verify installed skills and backup behavior
         shell: pwsh
         run: ./scripts/test-install-smartbuild.ps1
+
+      - name: Verify interrupted installation and recovery
+        shell: pwsh
+        run: |
+          ./scripts/test-install-recovery.ps1
+          node --test scripts/test-install-recovery.mjs
+      - name: Verify Windows PowerShell 5.1 recovery compatibility
+        shell: powershell
+        run: |
+          ./scripts/test-install-recovery.ps1
+          $env:SMARTBUILD_PWSH = 'powershell.exe'
+          node --test scripts/test-install-recovery.mjs

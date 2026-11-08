@@ -340,3 +340,41 @@ test('amended blocked task restarts from its new plan instead of stale resume ph
     assert.equal(f.state.tasks[0].step, 1);
   }
 });
+
+for (const preauthorized of [false, true]) test('R004 newly queued work during an empty pause resumes without invented drift: '+preauthorized, t => {
+  const f=fixture(t); f.act('pause'); f.add(); f.plan('R001');
+  if(preauthorized) f.authorize();
+  const authorization=structuredClone(f.state.tasks[0].authorization);
+  assert.equal(f.state.tasks[0].checkpoint,undefined);
+  assert.throws(()=>f.act('resume',{message:'继续',source:'fixture user'}));
+  f.act('resume',{message:'开始制作',source:'fixture user'});
+  assert.equal(f.state.paused,false); assert.equal(f.state.tasks[0].status,preauthorized?'queued':'recorded');
+  assert.deepEqual(f.state.tasks[0].authorization,authorization);
+  if(!preauthorized){assert.throws(f.start,/authorization/);f.authorize();}
+  f.start(); assert.equal(f.state.tasks[0].status,'running');
+});
+
+for (const preauthorized of [false, true]) test('R004 reserved work paused before start resumes without granting authorization: '+preauthorized, t => {
+  const f=fixture(t); f.add(); f.plan('R001');
+  if(preauthorized) f.authorize();
+  const authorization=structuredClone(f.state.tasks[0].authorization);
+  f.act('pause',{nextAction:'user pause'});
+  assert.equal(f.state.tasks[0].status,'paused'); assert.equal(f.state.tasks[0].step,0);
+  assert.throws(()=>f.act('resume',{message:'继续',source:'fixture user'}));
+  f.act('resume',{message:'开始制作',source:'fixture user'});
+  assert.equal(f.state.paused,false); assert.equal(f.state.tasks[0].status,preauthorized?'queued':'recorded');
+  assert.deepEqual(f.state.tasks[0].authorization,authorization);
+  if(!preauthorized){assert.throws(f.start,/authorization/);f.authorize();}
+  f.start(); assert.equal(f.state.tasks[0].status,'running');
+});
+
+test('R004 dependency guard retains preparatory cognition and failed-result evidence', t => {
+  const f=fixture(t); f.prepare(); f.start(); f.finish();
+  f.add({dependsOn:['R001']}); f.authorize('R002'); f.plan('R002'); f.act('start',{id:'R002'});
+  f.act('reopen',{id:'R001',reason:'dependency failed',source:'fixture user'});
+  f.act('evidence',{id:'R002',kind:'business',result:'failed',summary:'invalid prerequisite',artifact:'.smartbuild/evidence/result.txt'});
+  f.act('evidence',{id:'R002',kind:'cognition_delivery',result:'passed',summary:'source-bound cognition',artifact:'.smartbuild/evidence/result.txt',receipt:f.receipt});
+  const evidence=f.state.tasks.find(task=>task.id==='R002').evidence;
+  assert.equal(evidence.at(-2).result,'failed');
+  assert.equal(evidence.at(-1).kind,'cognition_delivery');
+});

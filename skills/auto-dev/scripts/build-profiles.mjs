@@ -40,8 +40,7 @@ function patterns(text) {
   return Object.entries(NEED_PATTERNS).filter(([, regex]) => regex.test(text)).map(([name]) => name);
 }
 
-export function buildProfiles(skillsRoot, { overridesFile = null } = {}) {
-  const entries = catalog([skillsRoot]);
+export function buildProfiles(skillsRoot, { overridesFile = null, entries = catalog([skillsRoot]) } = {}) {
   const overrides = readOverrides(overridesFile ?? overridesPath(skillsRoot));
   const profiles = [];
   for (const entry of entries) {

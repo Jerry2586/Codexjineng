@@ -246,3 +246,15 @@ test('queued quality stays unverified after cancelling a paused successor of a c
  const check=()=>{fs.writeFileSync(path.join(f.root,'auto-dev-state.json'),JSON.stringify(f.state));for(const mode of ['compact','full'])assert.doesNotMatch(renderPanel(f.root,{mode}),/项目审计：已通过|代码审核：已通过|文字检查：已通过/);};
  check();f.act('resume',{id:undefined,message:'开始制作',source:'fixture user'});check();
 });
+
+for (const dependencyStatus of ['reopened','cancelled']) for (const action of ['checkpoint','deliver','complete','operation-start','evidence']) test('R004 '+dependencyStatus+' dependency blocks ongoing '+action, t => {
+ const f=fixture(t); f.finish(); f.add({dependsOn:['R001']}); f.start('R002');
+ if(action!=='checkpoint'){f.checks();f.review();f.act('verify');}
+ if(action==='complete'||action==='operation-start'){f.act('deliver');f.act('evidence',{kind:'local',result:'passed',summary:'fixture delivery',artifact:f.proof()});}
+ f.act('reopen',{id:'R001',reason:'dependency failed',source:'fixture user'});
+ if(dependencyStatus==='cancelled')f.act('cancel',{id:'R001',reason:'fixture cancellation'});
+ const before=structuredClone(f.state);
+ assert.throws(()=>f.act(action,{id:'R002',step:1,nextAction:'continue',operation:'local',key:'after-reopen',target:'fixture',kind:'business',result:'passed',summary:'dependent result',artifact:f.proof()}),/Dependencies incomplete/);
+ assert.deepEqual(f.state,before);
+ assert.equal(f.state.tasks.find(t=>t.id==='R001').status,dependencyStatus==='cancelled'?'cancelled':'queued');
+});

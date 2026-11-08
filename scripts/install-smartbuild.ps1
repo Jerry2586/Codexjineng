@@ -6,11 +6,11 @@
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'smartbuild-files.ps1')
 $packageRoot = (Resolve-Path (Join-Path $PSScriptRoot '../skills')).Path
-$destinationFull = [IO.Path]::GetFullPath($Destination).TrimEnd([IO.Path]::DirectorySeparatorChar)
+$destinationFull = (Resolve-FileSystemPath $Destination).TrimEnd([IO.Path]::DirectorySeparatorChar)
 $destinationParent = Split-Path -Parent $destinationFull
 if ((Split-Path -Leaf $destinationFull) -ne 'auto-dev' -or [string]::IsNullOrWhiteSpace($destinationParent)) { throw '安装目标必须是名为 auto-dev 的独立技能目录。' }
 if (-not $BackupDirectory) { $BackupDirectory = Join-Path (Split-Path -Parent $destinationParent) 'smartbuild-backups' }
-$backupContainer = [IO.Path]::GetFullPath($BackupDirectory)
+$backupContainer = (Resolve-FileSystemPath $BackupDirectory)
 Assert-Outside $backupContainer $destinationParent
 Assert-Outside $backupContainer $packageRoot
 Assert-NoLink $destinationFull
@@ -27,7 +27,7 @@ foreach ($skillName in $skillNames) {
     Assert-Outside $skillTarget $packageRoot
     Assert-NoLink $skillTarget
     $candidates = @()
-    foreach ($sourceFile in Get-ChildItem -LiteralPath $skillSource -File -Recurse) {
+    foreach ($sourceFile in Get-ChildItem -LiteralPath $skillSource -File -Recurse -Force) {
         Assert-NoLink $sourceFile.FullName
         $relative = "$skillName/$((Get-RelativePathCompat $skillSource $sourceFile.FullName).Replace('\','/'))"
         Assert-SkillRelativePath $relative
@@ -73,7 +73,7 @@ $stageSkills = Join-Path $stageRoot 'skills'
 New-Item -ItemType Directory -Path $stageSkills -Force | Out-Null
 try {
     if (Test-Path -LiteralPath $destinationParent) {
-        foreach ($dir in Get-ChildItem -LiteralPath $destinationParent -Directory) {
+        foreach ($dir in Get-ChildItem -LiteralPath $destinationParent -Directory -Force) {
             if ($dir.Name -match '^(smartbuild-backup-|\.skill-library-(stage|old)-)' -or -not (Test-Path -LiteralPath (Join-Path $dir.FullName 'SKILL.md') -PathType Leaf)) { continue }
             Assert-NoLink $dir.FullName
             foreach ($file in Get-ChildItem -LiteralPath $dir.FullName -File -Recurse -Force) {
@@ -118,7 +118,7 @@ if ($installFiles.Count) {
     Write-JsonNoBom (Join-Path $backupRoot 'manifest.json') $manifest
     foreach ($item in $installFiles) {
         New-Item -ItemType Directory -Path (Split-Path -Parent $item.target) -Force | Out-Null
-        Copy-Item -LiteralPath $item.source -Destination $item.target -Force
+        Copy-FileAtomic $item.source $item.target $item.installedSha256
         if ((Get-FileHash -LiteralPath $item.target).Hash -ne $item.installedSha256) { throw "安装校验失败，可从 $backupRoot 恢复。" }
     }
 }
