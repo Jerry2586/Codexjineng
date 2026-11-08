@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { QUALITY_SKILLS } from './workflow-contract.mjs';
 import { readSkillEntry } from './skill-catalog.mjs';
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
 const text=(s,key)=>{check(typeof s==='string'&&s.trim(),key+' required');return s.trim();};
@@ -81,7 +83,7 @@ export function workflowReport(task,root,helpers,{beforeDelivery=false}={}) {
   const reviewRecord=(task.evidence??[]).filter(e=>e.kind==='review'&&e.planVersion===task.planVersion).at(-1);
   const waiver=task.reviewWaiver;
   const waived=task.reviewRequired===false && waiver?.planVersion===task.planVersion && !!waiver.source?.trim() && !!waiver.reason?.trim();
-  const review={required:!waived,waiver:waived?waiver:null,record:reviewRecord??null,valid:!!reviewRecord&&reviewRecord.result==='passed'&&reviewRecord.independent===true&&independentReviewer(reviewRecord.reviewer)&&!taskExecutors(task).some(actor=>actor.id===reviewRecord.reviewer.id)&&reviewRecord.findings?.blocking===0&&artifactValid(root,reviewRecord.artifact,helpers)&&reviewRecord.fingerprint===helpers.fingerprint(root,task.watch)};
+  const review={required:!waived,waiver:waived?waiver:null,record:reviewRecord??null,valid:!!reviewRecord&&reviewRecord.result==='passed'&&reviewRecord.independent===true&&independentReviewer(reviewRecord.reviewer)&&!taskExecutors(task).some(actor=>actor.id===reviewRecord.reviewer.id)&&reviewRecord.findings?.blocking===0&&(task.qualityVersion!==1||reviewRecord.skill===QUALITY_SKILLS.review&&!!reviewRecord.source?.trim())&&artifactValid(root,reviewRecord.artifact,helpers)&&reviewRecord.fingerprint===helpers.fingerprint(root,task.watch)};
   const reason=routes.find(r=>!r.valid)?.reason ?? (acceptance.some(a=>!a.valid)?'Acceptance evidence missing, failed, or stale':null)
     ?? (issues.some(i=>i.blocking&&!i.valid)?'Blocking issue requires repair and current retest':null)
     ?? (review.required&&!review.valid?'Independent review evidence missing, failed, or stale':null);
@@ -92,7 +94,18 @@ export function assertWorkflowReady(task,root,helpers,options) {
 }
 export function auditTransition(state,task,request,root,helpers) {
   const base=()=>({planVersion:task.planVersion,fingerprint:helpers.fingerprint(root,task.watch),session:state.session,at:now()});
-  const changes=()=>{check(Array.isArray(request.changes)&&request.changes.length,'changes required');return request.changes.map(file=>{helpers.localPath(root,file);check(task.watch.some(w=>file===w||file.startsWith(w+'/')),'Change outside task watch');return file;});};
+  const changes=()=>{
+    check(Array.isArray(request.changes)&&request.changes.length,'changes required');
+    return request.changes.map(file=>{
+      // Deleted paths remain valid evidence inputs; containment and link checks still apply.
+      const target=helpers.localPath(root,file,false);
+      check(task.watch.some(w=>{
+        const relative=path.relative(helpers.localPath(root,w,false),target);
+        return relative==='' || relative!=='..'&&!relative.startsWith('..'+path.sep)&&!path.isAbsolute(relative);
+      }),'Change outside task watch');
+      return file;
+    });
+  };
   if(request.action==='adopt-workflow') {
     check(task.workflowVersion!==1,'Workflow already adopted');check(request.reviewed===true,'Legacy review required');
     task.workflowVersion=1;task.history.push({workflowAdoption:{...base(),artifact:helpers.artifact(root,request.artifact),reason:text(request.reason,'reason')}});

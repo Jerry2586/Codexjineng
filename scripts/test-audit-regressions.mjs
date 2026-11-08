@@ -16,11 +16,12 @@ function fixture(t,options={}) {
  const proof=()=>{const file='.smartbuild/evidence/'+(++seq)+'.txt';fs.writeFileSync(path.join(root,file),'fixture observation '+seq);return file;};
  const add=(fields={})=>act('add',{id:undefined,title:'task',scope:'app',watch:['app.txt'],acceptance:['app works'],...fields});
  const start=(id)=>{act('authorize',{id,message:'开始制作',source:'fixture user',operations:state.tasks.find(t=>t.id===id).deliveries});act('plan',{id,steps:[{title:'implement',input:'app',output:'app',verify:'test'}]});act('start',{id});};
- const checks=()=>{act('skill-select',{context:{goal:'regression',needs:['testing']},selection:{primary:null,support:[],reason:'standard regression'},audit:{read:false,compatible:true,reason:'fixture',executor}});act('skill-outcome',{result:'passed',category:'quality',progressed:true,symptom:'checked',reason:'passed',verification:'fixture test',artifact:proof(),executor});act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fixture test',artifact:proof()});act('evidence',{kind:'business',result:'passed',summary:'fixture',artifact:proof()});};
- const review=(fields={})=>act('evidence',{kind:'review',result:'passed',summary:'fixture review',artifact:proof(),reviewer,independent:true,findings:{blocking:0,advisory:0},...fields});
+ const quality=()=>{for(const [kind,skill] of [['project_audit','ponytail-audit'],['text_review','humanizer']])act('evidence',{kind,skill,source:'isolated test fixture',result:'passed',summary:'fixture quality check',artifact:proof()});};
+ const checks=()=>{act('skill-select',{context:{goal:'regression',needs:['testing']},selection:{primary:null,support:[],reason:'standard regression'},audit:{read:false,compatible:true,reason:'fixture',executor}});act('skill-outcome',{result:'passed',category:'quality',progressed:true,symptom:'checked',reason:'passed',verification:'fixture test',artifact:proof(),executor});act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fixture test',artifact:proof()});act('evidence',{kind:'business',result:'passed',summary:'fixture',artifact:proof()});quality();};
+ const review=(fields={})=>act('evidence',{kind:'review',skill:'ponytail-review',source:'isolated test fixture',result:'passed',summary:'fixture review',artifact:proof(),reviewer,independent:true,findings:{blocking:0,advisory:0},...fields});
  const finish=()=>{checks();review();act('verify');act('deliver');act('evidence',{kind:'local',result:'passed',summary:'fixture delivery',artifact:proof()});act('complete');};
  const {deferStart=false,...taskOptions}=options;add(taskOptions);if(!deferStart)start('R001');
- return {root,act,proof,add,start,checks,review,finish,get state(){return state;}};
+ return {root,act,proof,add,start,quality,checks,review,finish,get state(){return state;}};
 }
 test('F01 review identity findings and metrics survive state readback',t=>{
  const f=fixture(t);const metrics={before:{complexity:9},after:{complexity:4}};f.review({metrics});
@@ -93,7 +94,7 @@ test('A01 review loses independence if the reviewer later executes the task', t 
  f.act('skill-select',{context:{goal:'regression',needs:['testing']},selection:{primary:null,support:[],reason:'standard regression'},audit:{read:false,compatible:true,reason:'fixture',executor:reviewer}});
  f.act('skill-outcome',{result:'passed',category:'quality',progressed:true,symptom:'checked',reason:'passed',verification:'fixture',artifact:f.proof(),executor:reviewer});
  f.act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fixture',artifact:f.proof()});
- f.act('evidence',{kind:'business',result:'passed',summary:'fixture',artifact:f.proof()}); f.act('verify');
+ f.act('evidence',{kind:'business',result:'passed',summary:'fixture',artifact:f.proof()}); f.quality(); f.act('verify');
  assert.throws(()=>f.act('deliver'),/independent review/i);
 });
 test('A02 reopened tasks cannot reuse previous acceptance or delivery evidence', t => {
@@ -104,11 +105,11 @@ test('A02 reopened tasks cannot reuse previous acceptance or delivery evidence',
  f.act('start');
  f.act('skill-select',{context:{goal:'regression',needs:['testing']},selection:{primary:null,support:[],reason:'standard regression'},audit:{read:false,compatible:true,reason:'fixture',executor}});
  f.act('skill-outcome',{result:'passed',category:'quality',progressed:true,symptom:'checked',reason:'passed',verification:'fixture',artifact:f.proof(),executor});
- f.act('verify');assert.throws(()=>f.act('deliver'),/business|acceptance|review/i);
+ f.act('verify');assert.throws(()=>f.act('deliver'),/project_audit/i);
  assert.equal(f.state.tasks[0].history.at(-1).reopened.basis.evidence.length,before.evidence.length);
  f.act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fresh test',artifact:f.proof()});
  f.act('evidence',{kind:'business',result:'passed',summary:'fresh test',artifact:f.proof()});
- f.review();f.act('deliver');assert.throws(()=>f.act('complete'),/local.*evidence/i);
+ f.quality();f.review();f.act('deliver');assert.throws(()=>f.act('complete'),/local.*evidence/i);
  f.act('evidence',{kind:'local',result:'passed',summary:'fresh delivery',artifact:f.proof()});f.act('complete');
  assert.equal(summary(f.state,f.root).checks[0].completion.valid,true);
 });
@@ -126,7 +127,7 @@ test('A04 genuinely legacy completion remains unverified until fresh acceptance'
  f.act('reopen',{reason:'verify legacy record',source:'fixture user'});
  if(!f.state.tasks[0].authorization)f.act('authorize',{message:'开始制作',source:'fixture user',operations:['local']});
  if(!f.state.tasks[0].steps.length)f.act('plan',{steps:[{title:'reverify',input:'legacy',output:'evidence',verify:'tests'}]});
- f.act('start');f.act('verify');assert.throws(()=>f.act('deliver'),/business|acceptance|routing/i);
+ f.act('start');f.act('verify');assert.throws(()=>f.act('deliver'),/project_audit/i);
  f.finish();assert.equal(summary(f.state,f.root).checks[0].completion.valid,true);
 });
 
@@ -176,4 +177,72 @@ test('A09 full cognition completion ignores an unused failed bounded alternative
  for(const kind of ['cognition_limit','source_review'])f.act('evidence',{kind,result:'failed',summary:'unused alternative',artifact:unused});
  for(const kind of ['cognition_delivery','cognition_alignment'])f.act('evidence',{kind,result:'passed',summary:'full cognition verified',artifact:f.proof(),receipt});
  f.start('R001');fs.writeFileSync(path.join(f.root,unused),'updated alternative');f.finish();assert.equal(summary(f.state,f.root).checks[0].completion.valid,true);
+});
+
+
+test('R003 cancelling the locked task reserves the next active task', t => {
+ const f=fixture(t);f.add({title:'next task'});
+ f.act('cancel',{reason:'fixture user cancellation'});
+ assert.equal(f.state.tasks[0].status,'cancelled');
+ assert.equal(f.state.lock,'R002');
+ assert.equal(f.state.tasks[1].status,'recorded');
+ assert.equal(f.state.tasks[1].authorization,null);
+});
+test('R003 whole-project and normalized watch paths accept in-scope changes', t => {
+ for(const watch of [['.'],['./'],['./app.txt']]) {
+  const f=fixture(t,{watch});
+  f.act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'fixture assertions',artifact:f.proof()});
+  assert.equal(f.state.tasks[0].acceptanceResults.at(-1).result,'passed');
+ }
+});
+test('R003 deletion repairs can be recorded and still enforce the watched scope', t => {
+ const f=fixture(t);const finding=f.proof();
+ f.act('issue-open',{title:'obsolete file',severity:'medium',blocking:true,reviewer,independent:true,artifact:finding});
+ fs.unlinkSync(path.join(f.root,'app.txt'));
+ f.act('acceptance-result',{criterion:0,result:'passed',changes:['app.txt'],verification:'file absent',artifact:f.proof()});
+ f.act('issue-resolve',{issueId:'I1',fix:'remove obsolete file',changes:['app.txt'],verification:'file absent',artifact:f.proof()});
+ assert.equal(f.state.tasks[0].issues[0].status,'resolved');
+ assert.throws(()=>f.act('acceptance-result',{criterion:0,result:'passed',changes:['other.txt'],verification:'outside scope',artifact:f.proof()}),/outside task watch/);
+ assert.throws(()=>f.act('acceptance-result',{criterion:0,result:'passed',changes:['../outside.txt'],verification:'outside project',artifact:f.proof()}),/escapes project/);
+});
+
+test('completed last task retains current quality in both panels without masking drift or queued work',t=>{
+ const f=fixture(t);f.finish();assert.equal(f.state.lock,null);
+ const save=()=>fs.writeFileSync(path.join(f.root,'auto-dev-state.json'),JSON.stringify(f.state));save();
+ for(const mode of ['compact','full']){
+  const output=renderPanel(f.root,{mode});
+  for(const name of ['项目审计','代码审核','文字检查'])assert.ok(output.includes(name+'：已通过'),output);
+ }
+ fs.writeFileSync(path.join(f.root,'app.txt'),'changed after completion');
+ for(const mode of ['compact','full'])assert.doesNotMatch(renderPanel(f.root,{mode}),/项目审计：已通过|代码审核：已通过|文字检查：已通过/);
+ fs.writeFileSync(path.join(f.root,'app.txt'),'v1');f.add();save();
+ for(const mode of ['compact','full'])assert.doesNotMatch(renderPanel(f.root,{mode}),/项目审计：已通过|代码审核：已通过|文字检查：已通过/);
+});
+
+for (const preauthorized of [false,true]) test('R003 cancelling while paused preserves the next task authorization: '+preauthorized, t => {
+ const f=fixture(t);f.add({title:'next task'});
+ f.act('plan',{id:'R002',steps:[{title:'next',input:'app',output:'app',verify:'test'}]});
+ if(preauthorized)f.act('authorize',{id:'R002',message:'开始制作',source:'fixture user',operations:['local']});
+ const authorization=structuredClone(f.state.tasks[1].authorization);
+ f.act('pause',{nextAction:'paused by user'});
+ f.act('cancel',{id:'R001',reason:'fixture user cancellation'});
+ assert.equal(f.state.paused,true);assert.equal(f.state.lock,null);
+ assert.deepEqual(f.state.tasks[1].authorization,authorization);
+ assert.throws(()=>f.act('start',{id:'R002'}),/paused|authorization/i);
+ assert.throws(()=>f.act('resume',{id:undefined,message:'继续',source:'fixture user'}));
+ assert.equal(f.state.paused,true);
+ f.act('resume',{id:undefined,message:'开始制作',source:'fixture user'});
+ assert.equal(f.state.paused,false);assert.notEqual(f.state.tasks[1].status,'blocked');
+ if(!preauthorized){
+  assert.throws(()=>f.act('start',{id:'R002'}),/authorization/i);
+  f.act('authorize',{id:'R002',message:'开始制作',source:'fixture user',operations:['local']});
+ }
+ f.act('start',{id:'R002'});assert.equal(f.state.lock,'R002');assert.equal(f.state.tasks[1].status,'running');
+});
+
+test('queued quality stays unverified after cancelling a paused successor of a completed task',t=>{
+ const f=fixture(t);f.add({title:'paused successor'});f.add({title:'queued successor'});f.finish();f.start('R002');f.act('pause',{nextAction:'paused by user'});f.act('cancel',{id:'R002',reason:'fixture cancellation'});
+ assert.equal(f.state.lock,null);assert.equal(f.state.tasks[0].status,'completed');assert.equal(f.state.tasks[2].status,'recorded');
+ const check=()=>{fs.writeFileSync(path.join(f.root,'auto-dev-state.json'),JSON.stringify(f.state));for(const mode of ['compact','full'])assert.doesNotMatch(renderPanel(f.root,{mode}),/项目审计：已通过|代码审核：已通过|文字检查：已通过/);};
+ check();f.act('resume',{id:undefined,message:'开始制作',source:'fixture user'});check();
 });

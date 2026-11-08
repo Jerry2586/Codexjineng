@@ -21,8 +21,9 @@ function fixture(t, count = 1, deliveries = ['local']) {
   const select=()=>act('skill-select',{context:{goal:'fixture',needs:['testing'],phase:'test'},selection:{primary:null,support:[],reason:'Use explicit standard test workflow'},audit:{read:false,compatible:true,reason:'No specialist needed',executor:actor}});
   const outcome=(fields={})=>act('skill-outcome',{result:'passed',category:'quality',progressed:true,symptom:'fixture',reason:'assertions passed',verification:'test command',artifact:proof(),executor:actor,...fields});
   const accept=(fields={})=>{for(let criterion=0;criterion<2;criterion++)act('acceptance-result',{criterion,result:'passed',changes:['app.txt'],verification:'fixture test',artifact:proof(),...fields});};
-  const business=()=>act('evidence',{kind:'business',result:'passed',summary:'fixture tests',artifact:proof()});
-  const reviewed=()=>act('evidence',{kind:'review',result:'passed',summary:'fixture review',artifact:proof(),reviewer:{id:'fixture-reviewer',kind:'subagent',source:'tool',observation:'fixture subagent return'},independent:true,findings:{blocking:0,advisory:0}});
+  const quality=()=>{for(const [kind,skill] of [['project_audit','ponytail-audit'],['text_review','humanizer']])act('evidence',{kind,skill,source:'isolated test fixture',result:'passed',summary:'fixture quality check',artifact:proof()});};
+  const business=()=>{quality();return act('evidence',{kind:'business',result:'passed',summary:'fixture tests',artifact:proof()});};
+  const reviewed=()=>{quality();return act('evidence',{kind:'review',skill:'ponytail-review',source:'isolated test fixture',result:'passed',summary:'fixture review',artifact:proof(),reviewer:{id:'fixture-reviewer',kind:'subagent',source:'tool',observation:'fixture subagent return'},independent:true,findings:{blocking:0,advisory:0}});};
   const deliver=()=>{act('verify');business();reviewed();act('deliver');};
   const finish=()=>{act('evidence',{kind:'local',result:'passed',summary:'fixture artifact',artifact:proof()});act('complete');};
   return {root,act,proof,select,outcome,accept,business,reviewed,deliver,finish,get state(){return state;}};

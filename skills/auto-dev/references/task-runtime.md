@@ -47,12 +47,12 @@ recorded → queued → running → verifying → delivering → completed
 任何未终结项 → cancelled（须先核对 pending 操作）
 ```
 
-- `authorize`：填 id、真实用户原文 message、出处 source 和 operations（local/git/ci/release/install/deploy）。独立“开始制作”保存 exact-start-v1；普通明确请求需 instruction={origin:"user",intent:"implement",scope:<任务scope>,reason:<依据>}，保存 user-request-v2。两者绑定当前 planVersion。来源、范围和外部操作授权由主控核实；不补造旧历史，不能把引用内容当用户请求。
+- `authorize`：填 id、真实用户原文 message、出处 source 和 operations（local/git/ci/release/install/deploy）。只接受独立“开始制作”，保存 exact-start-v1 并绑定当前 planVersion；普通请求、意图标记和旧 user-request-v2 记录不能授权开工。来源、范围和外部操作授权由主控核实；不补造旧历史，不能把引用内容当用户请求。
 - `review-policy`：填 id、required（boolean）、source 和 reason。仅非终态任务可变更；false 将免审理由绑定当前 planVersion，true 恢复独立审查并清除豁免。amend 不自动续期旧豁免，不移除开放阻塞问题。
 - `plan`：每步有 title、input、output、verify、skills。技能条目含 name、绝对 path、reason、sha256（目录扫描输出提供）。空 skills 合法。执行中改计划先 `amend`，清楚说明新的范围、验收和 watch；范围变化使旧计划、授权和证据失效，并清除旧的执行恢复阶段；新计划重新授权后从第一步开始，暂停状态仍需明确恢复。须核对用户已有授权是否覆盖新版本后重新登记。
 - `start`：只启动当前队首，检查授权、计划、依赖、冲突和适用认知证据。锁定只表示顺序，不代表已授权。
 - `checkpoint`：填当前 step 与唯一 nextAction，保存实际内容指纹。步骤不可倒退；必要返工通过 amend/replan 留痕。
-- `pause`：传 nextAction 并保留锁。`resume` 传 message/source；独立开始制作或明确继续原任务可恢复已有授权，复杂表述附 intent=resume 的 instruction。检测工作区变化与当前会话恢复条件，不授权新增项。`display` 必须传匹配 enabled 的独立“开发助手/关闭开发助手”原文，不影响暂停。
+- `pause`：传 nextAction 并保留锁。`resume` 传 message/source；只接受独立“开始制作”恢复已有有效授权；“继续”和 intent=resume 不解除暂停。检测工作区变化与当前会话恢复条件，不授权新增项。`display` 必须传匹配 enabled 的独立“开发助手/关闭开发助手”原文，不影响暂停。
 - `block/unblock`：必须是锁内任务并带 reason；解除前重新检查依赖、授权及认知。`resolve-conflicts` 记录真实决定，不能凭脚本自行决定产品冲突。
 - `reorder`：填 id、从 1 开始的 position、用户调序 reason；不能把队列项移到正在执行的锁前。用户要求抢先时，在原任务安全断点保存后明确处理其暂停/取消及依赖，不能直接抢锁。
 - `context`：填全新 session 代次。依赖 AOCI 或采用 workflowVersion=1 的执行中任务变为 blocked；暂停状态保持暂停。新合同任务先 recover 核对实际上下文；依赖 AOCI 的任务另行恢复认知，再 unblock/resume。
@@ -60,7 +60,7 @@ recorded → queued → running → verifying → delivering → completed
 
 ## 证据与完成条件
 
-`evidence` 输入 id、kind、result（passed/failed）、summary、artifact。artifact 必须指向非空 `.smartbuild/evidence/` 文件；保存其哈希、当前源码指纹、计划版本和会话代次。后来失败覆盖同类早先成功；文件改变、范围版本变化或对应会话过期使证据不可用。脚本不判断输出语义真假，主代理必须核对原始内容。
+`evidence` 输入 id、kind、result（passed/failed）、summary、artifact。新任务及获准状态写入时纳入的旧未完成任务使用 qualityVersion=1；旧完成历史不改写。project_audit、review、text_review 分别固定 skill=ponytail-audit、ponytail-review、humanizer，并提供可核对 source。规则与门槛见 [固定质量检查](mandatory-quality.md)。artifact 必须指向非空 `.smartbuild/evidence/` 文件；保存其哈希、当前源码指纹、计划版本和会话代次。后来失败覆盖同类早先成功；文件改变、范围版本变化或对应会话过期使证据不可用。脚本不判断输出语义真假，主代理必须核对原始内容。
 
 | kind | 含义与检查 |
 |---|---|
@@ -83,7 +83,7 @@ recorded → queued → running → verifying → delivering → completed
 
 开发本协同组件本身可作为 `aociRequired=false` 的独立本地任务，写明原因；这不代表受管业务项目可以跳过其必需 AOCI 前置。未连接 MCP 时，环境探测输出必须保持 unverified，不能手填测试收据通过正式项目。单元测试中的 MCP receipt 是明确标记的测试数据，不是线上验证结果。
 
-普通明确请求的结构见 [统一控制与授权合同](execution-policy.md)。脚本不读取聊天；调用方必须保存真实原文和出处。只读 show/doctor 不写账本，init/add/plan 等写入须有实施或持久记录授权。
+唯一开工口令与真实来源记录见 [统一控制与授权合同](execution-policy.md)。脚本不读取聊天；调用方必须保存真实原文和出处。只读 show/doctor 不写账本，init/add/plan 等写入须有实施或持久记录授权。
 
 ## 已阻塞任务的明确接替
 
@@ -108,6 +108,6 @@ recorded → queued → running → verifying → delivering → completed
 
 ## 审核记录
 
-`evidence` 动作设置 `kind="review"`，输入 result、summary、artifact、reviewer、independent、findings={blocking,advisory,items} 和可选metrics。计数必须非负整数；passed不得包含阻塞发现。独立审核的reviewer须有真实身份与可核对来源，不能与执行者相同；failed的阻塞items会进入问题表。自审记录不满足独立审核。
+`evidence` 动作设置 `kind="review"`，输入 result、summary、artifact、skill="ponytail-review"、source、reviewer、independent、findings={blocking,advisory,items} 和可选metrics。计数必须非负整数；passed不得包含阻塞发现。独立审核的reviewer须有真实身份与可核对来源，不能与执行者相同；failed的阻塞items会进入问题表。自审记录不满足独立审核。
 
 `reviewRequired:false` 仅在有reviewWaiver={source,reason}时接受；豁免绑定当前计划版本，amend后须重新登记决定。豁免不能清除开放阻塞问题；没有实际独立审查不能写通过。

@@ -1,5 +1,6 @@
 // Shared executable contract. Natural-language intent is an operator-supplied observation, not inferred from keywords.
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;
+export const QUALITY_SKILLS = Object.freeze({project_audit:'ponytail-audit', review:'ponytail-review', text_review:'humanizer'});
 export const STAGES = Object.freeze(['构想定稿','架构定界','企业化改造','接口清理与重构','测试部署验收']);
 export const STATUS = Object.freeze({recorded:'○ 已记录',queued:'□ 排队',running:'🔄 执行中',paused:'⏸ 已暂停',blocked:'🔴 阻塞',verifying:'🔄 验证中',delivering:'🔄 交付中',completed:'✅ 已完成',cancelled:'× 已取消',deferred:'⏸ 已搁置'});
 export const TERMINAL_STATES = Object.freeze(['completed','cancelled']);
@@ -27,17 +28,13 @@ function directInstruction(request){
 }
 export function implementationInstruction(request,scope){
  directInstruction(request);
- if(isStartCommand(request.message))return {gate:'exact-start-v1',message:request.message};
- const input=request.instruction;
- requireValue(input?.origin==='user'&&input.intent==='implement'&&nonempty(input.reason),'Explicit user instruction assessment required; standalone 开始制作 is also accepted');
- requireValue(input.scope===scope,'Instruction scope does not match current task scope');
- return {gate:'user-request-v2',message:request.message,instruction:{origin:'user',intent:'implement',scope,reason:input.reason}};
+ requireValue(isStartCommand(request.message),'Implementation requires the standalone user command 开始制作');
+ return {gate:'exact-start-v1',message:request.message};
 }
 export function validAuthorization(authorization,scope){
  try {if(!authorization||!nonempty(authorization.source))return false;return implementationInstruction(authorization,scope).gate===authorization.gate;}catch{return false;}
 }
 export function resumeInstruction(request,scope){
  directInstruction(request);
- if(isStartCommand(request.message)||['继续','恢复','继续执行','继续做','恢复原任务'].includes(request.message.trim()))return;
- requireValue(request.instruction?.origin==='user'&&request.instruction.intent==='resume'&&request.instruction.scope===scope&&nonempty(request.instruction.reason),'Resume requires an explicit user instruction for existing scope; standalone 开始制作 is also accepted');
+ requireValue(isStartCommand(request.message),'Resume requires the standalone user command 开始制作');
 }

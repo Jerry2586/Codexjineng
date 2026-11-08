@@ -328,6 +328,9 @@ export function recoverLibrary(options) {
     const parent = noLinks(path.dirname(j.target));
     ensure(equal(j.stage, path.join(parent, '.skill-library-stage-' + j.id)) && equal(j.parked, path.join(parent, '.skill-library-old-' + j.id)), 'Invalid recovery paths');
     noLinks(j.target); noLinks(j.stage); noLinks(j.parked);
+    // Reject conflicting recovery inputs before removing or replacing installed files.
+    const recoveryFiles = [[j.stage, j.newHash], [j.parked, j.oldHash]];
+    for (const [target, expected] of recoveryFiles) if (exists(target)) ensure(fileHash(target) === expected, 'Recovery files changed; manual recovery required');
     const item = ctx.state.skills.find(entry => entry.id === j.skillId);
     const committed = item?.lastOperation === j.id;
     if (committed) {
@@ -338,14 +341,17 @@ export function recoverLibrary(options) {
       if (exists(j.target)) {
         const actual = fileHash(j.target);
         ensure(actual === j.oldHash || actual === j.newHash, 'Local files changed; manual recovery required');
-        if (actual === j.newHash && actual !== j.oldHash) removeOwned(parent, j.target);
+        if (actual === j.newHash && actual !== j.oldHash) {
+          if (j.previous) ensure(exists(j.parked) && fileHash(j.parked) === j.oldHash, 'Original parked files are missing or changed; use the verified backup manually');
+          removeOwned(parent, j.target);
+        }
       }
       if (j.previous && !exists(j.target)) {
         ensure(exists(j.parked) && fileHash(j.parked) === j.oldHash, 'Original parked files are missing or changed; use the verified backup manually');
         fs.renameSync(j.parked, j.target);
       }
     }
-    for (const [target, expected] of [[j.stage, j.newHash], [j.parked, j.oldHash]]) if (exists(target)) { ensure(fileHash(target) === expected, 'Recovery files changed; manual recovery required'); removeOwned(parent, target); }
+    for (const [target, expected] of recoveryFiles) if (exists(target)) { ensure(fileHash(target) === expected, 'Recovery files changed; manual recovery required'); removeOwned(parent, target); }
     refreshProfiles(ctx, parent);
     fs.unlinkSync(file);
     return { status: committed ? 'completed' : 'restored', id: j.skillId };

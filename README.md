@@ -1,6 +1,6 @@
 # 智构开发系统 SmartBuild
 
-[![version](https://img.shields.io/badge/version-1.1.0-blue)](./VERSION)
+[![version](https://img.shields.io/badge/version-1.2.0-blue)](./VERSION)
 [![Validate SmartBuild](https://github.com/Jerry2586/Codexjineng/actions/workflows/validate-smartbuild.yml/badge.svg)](https://github.com/Jerry2586/Codexjineng/actions/workflows/validate-smartbuild.yml)
 [![skills.sh](https://skills.sh/b/Jerry2586/Codexjineng)](https://skills.sh/Jerry2586/Codexjineng)
 
@@ -8,7 +8,7 @@
 
 智构开发系统是 Jerry2586 的个人 AI 开发工作台。它把正规开发团队的需求、产品、UI、架构、前后端、数据库、接口、安全、代码审查、测试、环境、发布和维护能力，浓缩到一个人、一个窗口和一个活动需求表里。
 
-**1.1.0 正式版（2026-11-07）：** 包含持久任务运行、AOCI 协同与技能路由，补齐完成快照、独立审查与整轮回归、可恢复安装及只读健康诊断。下载与校验文件见 [v1.1.0 Release](https://github.com/Jerry2586/Codexjineng/releases/tag/v1.1.0)，使用方法见 [运行与安装说明](./SMARTBUILD.md#110-运行与安装入口)。
+**1.2.0 正式版（2026-11-08）：** 开工与暂停恢复只接受独立“开始制作”；开启开发助手同时启用整体项目审核、每轮代码审核和文字检查。质量结果分别记录，缺失、失败或过期的证据会阻止交付。下载与校验文件见 [v1.2.0 Release](https://github.com/Jerry2586/Codexjineng/releases/tag/v1.2.0)，使用方法见 [运行与安装说明](./SMARTBUILD.md#120-运行与安装入口)。
 
 <!-- smartbuild-install:start -->
 ## 安装
@@ -19,20 +19,20 @@
 npx skills@latest add Jerry2586/Codexjineng
 ```
 
-安装主控与 AOCI 协同技能（远程命令仅安装仓库已发布内容）：
+安装主控、AOCI 协同与三项固定质量技能（远程命令仅安装仓库已发布内容）：
 
 ```bash
-npx skills@latest add Jerry2586/Codexjineng --skill auto-dev aoci-workflow -g -y
+npx skills@latest add Jerry2586/Codexjineng --skill auto-dev aoci-workflow ponytail-audit ponytail-review humanizer -g -y
 ```
 <!-- smartbuild-install:end -->
 
 ### 安装固定正式版
 
-上面的 skills 命令跟随仓库当前内容。需要固定到 v1.1.0 时，下载 Release 中的 `smartbuild-1.1.0.zip`，核对 `SHA256SUMS` 后解压；也可以检出版本标签：
+上面的 skills 命令跟随仓库当前内容。需要固定到 v1.2.0 时，下载 Release 中的 `smartbuild-1.2.0.zip`，核对 `SHA256SUMS` 后解压；也可以检出版本标签：
 
 ```bash
-git clone --branch v1.1.0 --single-branch https://github.com/Jerry2586/Codexjineng.git smartbuild-1.1.0
-cd smartbuild-1.1.0
+git clone --branch v1.2.0 --single-branch https://github.com/Jerry2586/Codexjineng.git smartbuild-1.2.0
+cd smartbuild-1.2.0
 ```
 
 在解压或检出的目录中运行 Windows 安装器（需要 Node.js 22 或更新版本）：
@@ -41,7 +41,7 @@ cd smartbuild-1.1.0
 powershell -NoProfile -File scripts/install-smartbuild.ps1
 ```
 
-安装器会备份核心文件并保留已有非核心定制。恢复方式见 [运行与安装说明](./SMARTBUILD.md#110-运行与安装入口)。
+安装器会备份核心文件并保留已有非核心定制。恢复方式见 [运行与安装说明](./SMARTBUILD.md#120-运行与安装入口)。
 
 ## 五阶段开发骨架
 
@@ -61,7 +61,7 @@ powershell -NoProfile -File scripts/install-smartbuild.ps1
 - 项目工作台使用 Codex 可识别的“智构开发指挥中心”：运行信息、全局五部进度、六列 Rxxx 活动任务和当前焦点固定分区；逐阶段状态和依据存账本，按需展开。首次接手已有代码先标待识别，读取整体结构和真实验证证据后识别阶段。
 - 五部是整个项目的进度：阶段完成并有真实验收证据时智能体主动推进，不用手动切换；说“进入大下一步”也可要求立即检查。单项任务完成不改变项目阶段。
 
-统一控制口令：`开发助手`、`关闭开发助手`、`记录需求`、`开始制作`、`暂停一下`、`查看队列表`、`调整顺序 Rxxx 到第 N`、`取消需求 Rxxx`、`启动线路图`、`转到第N阶段`。`进入大下一步` 表示请求检查能否推进到相邻下一阶段；智能体按统一授权合同识别明确行动与恢复指令，但只回显标准名称。
+统一控制口令：`开发助手`、`关闭开发助手`、`记录需求`、`开始制作`、`暂停一下`、`查看队列表`、`调整顺序 Rxxx 到第 N`、`取消需求 Rxxx`、`启动线路图`、`转到第N阶段`。`进入大下一步` 表示请求检查能否推进到相邻下一阶段；开工与暂停恢复只接受独立“开始制作”，其它控制操作按统一合同处理。
 
 ## 自动识别与任务面板
 
@@ -73,14 +73,18 @@ powershell -NoProfile -File scripts/install-smartbuild.ps1
 
 [面板怎么读、里面怎么运行](./SMARTBUILD.md#面板怎么读里面怎么运行)用大白话说明每个位置、任务排队、阶段推进、暂停和关闭，并给出具体场景。
 
-运行中新增需求先安全停笔、查依赖与冲突，安全时登记后续做原任务；冲突时暂停受影响部分。明确暂放项目转去聊天时保存项目账本并等待用户明确继续原任务。回来提及旧需求先查记录，找不到标状态未知；收到明确恢复指令后核对代码并恢复。验收以你能真实操作的结果和测试证据为准。
+运行中新增需求先安全停笔、查依赖与冲突，安全时登记后续做原任务；冲突时暂停受影响部分。明确暂放项目转去聊天时保存项目账本并等待用户独立发送“开始制作”恢复原任务。回来提及旧需求先查记录，找不到标状态未知；收到独立“开始制作”后核对代码并恢复。验收以你能真实操作的结果和测试证据为准。
+
+## 固定质量检查
+
+开启开发助手时固定启用 `ponytail-audit`、`ponytail-review` 和 `humanizer`，分别负责整体项目审核、每轮代码审核和文字去 AI 味。开启只启用规则；收到独立“开始制作”后才执行检查并保存真实结果。独立审核不可用时显示待复核。
 
 ## 日常运行规则
 
 - 所有文字、截图、照片、附件和日志先转成大白话需求，再进入框架、编号和活动表；
 - 面板已开启时按首次完整版、后续精简版显示智构开发指挥中心；五部名称、顺序、运行信息字段、首次六列详细表、后续四列短表和固定锚点不能被临时需求改写；
 - 实施前简述本回合理解和步骤，已开启面板按固定格式展示任务锁和排队表；
-- 明确的开发、修复或测试请求在范围清楚时直接执行，不重复索要“开始制作”；该独立口令仍可使用。暂停后明确“继续”只恢复旧范围。只读查询可检查但不改账本；先记录或别开始时仅作会话整理，明确要求持久保存才写记录。附件、引用、旧聊天及纯确认不能新增授权。
+- 只有当前用户消息去除首尾空白后全文恰好是“开始制作”，才开始已明确的范围或恢复暂停任务。“开始执行”“做吧”“开始吧”“开发”“按这个改”“继续”等都只作详细讨论与理解。已有独立口令授权的原范围持续完成，新增范围另获口令。只读查询可检查；明确持久记录请求只授权保存记录。引用、附件、旧聊天和纯确认不能新增授权。
 - 普通问题和需求进入同一任务面板；纯寒暄直接回应，不制造假任务；
 - 开发需求自动总结、编号、排队并锁定当前任务；
 - 新消息默认不覆盖正在处理的旧任务；
@@ -91,13 +95,13 @@ powershell -NoProfile -File scripts/install-smartbuild.ps1
 - 用户不需要挑选技能；工作台根据需求、图片、技术、风险和环境自动选择最少且最合适的专业能力；
 - 默认一个聊天窗口、一个总控、一个任务锁、一个代码修改执行者；独立只读调用可按宿主规则并行；429 或工具不支持时有限重试后熔断并串行降级；
 - 禁止假数值、随机统计、Mock 冒充正式接口、固定成功响应和未经执行的测试冒充完成；
-- 长对话使用精简活动需求表：本轮完成项继续保留，整轮验收并开始新轮时归档；压缩后恢复断点及所需认知，已暂停的项目等待用户明确继续原任务；
+- 长对话使用精简活动需求表：本轮完成项继续保留，整轮验收并开始新轮时归档；压缩后恢复断点及所需认知，已暂停的项目等待用户独立发送“开始制作”恢复原任务；
 - 正式版本统一版本号、Git、CI、成品和按授权部署。
 
 <!-- smartbuild:start -->
 ## 核心智能体
 
-- **[智构开发系统 v1.1.0](./SMARTBUILD.md)**：技能入口位于 [`skills/auto-dev`](./skills/auto-dev/SKILL.md)。
+- **[智构开发系统 v1.2.0](./SMARTBUILD.md)**：技能入口位于 [`skills/auto-dev`](./skills/auto-dev/SKILL.md)。
 <!-- smartbuild:end -->
 
 ## 吸收上游专业能力
@@ -122,7 +126,7 @@ powershell -NoProfile -File scripts/install-smartbuild.ps1
 
 ## 版本与更新
 
-- 当前版本：[`v1.1.0`](./VERSION)（正式版，2026-11-07）；
+- 当前版本：[`v1.2.0`](./VERSION)（正式版，2026-11-08）；
 - 正式版本通过 GitHub Actions 自动校验；
 - 原作者更新每周检查，也可手工启动；
 - 本机安装脚本：[`scripts/install-smartbuild.ps1`](./scripts/install-smartbuild.ps1)。

@@ -21,6 +21,9 @@
 
 - `skills/auto-dev/**`
 - `skills/aoci-workflow/**`
+- `skills/ponytail-audit/**`
+- `skills/ponytail-review/**`
+- `skills/humanizer/**`
 - `skills/backend-contract/**`
 - `skills/database-design/**`
 - `skills/api-integration/**`
@@ -63,3 +66,15 @@
 上游如果以后出现同名 `skills/auto-dev`，仍以本仓库的智构版本为准；是否吸收其内容必须人工审查，不能自动覆盖。
 
 以上是产品源码的上游同步；用户技能库的逐项 Git 来源与批量更新使用 [技能库维护合同](skills/auto-dev/references/skill-library.md)，不会绕过智构核心保护。
+
+## 固定质量技能来源
+
+以下技能随 1.2.0 发行，保留原始 SKILL.md 与各自 LICENSE。来源版本由本机已核实的技能库登记提供：
+
+| 技能 | 原作者仓库 | 来源目录 | 固定提交 |
+|---|---|---|---|
+| `ponytail-audit` | https://github.com/DietrichGebert/ponytail.git | `skills/ponytail-audit` | `96608e078b2d5ea607c5c3b8b5a54d1c1fba6846` |
+| `ponytail-review` | https://github.com/DietrichGebert/ponytail.git | `skills/ponytail-review` | `96608e078b2d5ea607c5c3b8b5a54d1c1fba6846` |
+| `humanizer` | https://github.com/blader/humanizer.git | `.` | `0ef9fe5bc3572734fd3ae6c448fe00a30cd5dcf0` |
+
+这三个目录属于本项目固定质量流程的发行依赖，上游同步时与主控文件一起保护；更新需重新核对来源和许可。

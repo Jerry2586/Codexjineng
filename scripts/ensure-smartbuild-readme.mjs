@@ -7,7 +7,7 @@ const end = '<!-- smartbuild:end -->';
 const block = `${start}\n## 核心智能体\n\n- **[智构开发系统 v${version}](./SMARTBUILD.md)**：技能入口位于 [\`skills/auto-dev\`](./skills/auto-dev/SKILL.md)。\n${end}`;
 const installStart = '<!-- smartbuild-install:start -->';
 const installEnd = '<!-- smartbuild-install:end -->';
-const installBlock = `${installStart}\n## 安装\n\n安装你的完整技能包，并选择需要的技能：\n\n\`\`\`bash\nnpx skills@latest add Jerry2586/Codexjineng\n\`\`\`\n\n安装主控与 AOCI 协同技能（远程命令仅安装仓库已发布内容）：\n\n\`\`\`bash\nnpx skills@latest add Jerry2586/Codexjineng --skill auto-dev aoci-workflow -g -y\n\`\`\`\n${installEnd}`;
+const installBlock = `${installStart}\n## 安装\n\n安装你的完整技能包，并选择需要的技能：\n\n\`\`\`bash\nnpx skills@latest add Jerry2586/Codexjineng\n\`\`\`\n\n安装主控、AOCI 协同与三项固定质量技能（远程命令仅安装仓库已发布内容）：\n\n\`\`\`bash\nnpx skills@latest add Jerry2586/Codexjineng --skill auto-dev aoci-workflow ponytail-audit ponytail-review humanizer -g -y\n\`\`\`\n${installEnd}`;
 
 let readme = fs.readFileSync(path, 'utf8');
 readme = readme.replace(/version-\d+\.\d+\.\d+-blue/g, `version-${version}-blue`);

@@ -25,13 +25,14 @@ function fixture(t, options = {}) {
     if(!task.routing) act('skill-select',{id,context:{goal:'fixture test',needs:['testing']},selection:{primary:null,support:[],reason:'fixture standard method'},audit:{read:false,compatible:true,reason:'fixture',executor}});
     if(!state.tasks.find(t=>t.id===id).routing.routes.at(-1).outcomes.length) act('skill-outcome',{id,result:'passed',category:'quality',progressed:true,symptom:'fixture',reason:'fixture result',verification:'fixture assertions',artifact:'.smartbuild/evidence/result.txt',executor});
     for(let criterion=0;criterion<task.acceptance.length;criterion++)act('acceptance-result',{id,criterion,result:'passed',changes:['app.txt'],verification:'fixture verification',artifact:'.smartbuild/evidence/result.txt'});
+    for(const [kind,skill] of [['project_audit','ponytail-audit'],['text_review','humanizer']]) act('evidence',{id,kind,skill,source:'isolated test fixture',result:'passed',summary:'fixture quality check',artifact:'.smartbuild/evidence/result.txt'});
   };
   const proof = (kind, fields = {}) => { if(kind==='business') audit(); return act('evidence', { id: 'R001', kind, result: 'passed', summary: 'fixture', artifact: '.smartbuild/evidence/result.txt', ...fields }); };
   const receipt = { source: 'mcp', projectRoot: root, serviceVersion: 'test-only', identity: 'index-1', complete: true, delivered: true, aligned: true, recoveryPending: false };
   const cognition = (extra = {}) => { proof('cognition_delivery', { receipt: { ...receipt, ...extra } }); proof('cognition_alignment', { receipt }); };
   const prepare = () => { add(options); authorize('R001', options.deliveries ?? ['local']); plan('R001'); };
   const start = () => act('start', { id: 'R001' });
-  const review = (id='R001') => act('evidence', { id, kind: 'review', result: 'passed', summary: 'independent review complete',
+  const review = (id='R001') => act('evidence', { id, kind: 'review', skill: 'ponytail-review', source: 'isolated test fixture', result: 'passed', summary: 'independent review complete',
     artifact: '.smartbuild/evidence/result.txt',
     reviewer: { id: 'fixture-reviewer', kind: 'subagent', source: 'tool', observation: 'fixture subagent return' },
     independent: true, findings: { blocking: 0, advisory: 0 } });
@@ -223,13 +224,12 @@ test('AOCI probe never infers MCP delivery from CLI or index file presence', t =
 
 const invalidStartMessages = [undefined, null, 123, '', '执行', '开始执行', '继续执行', '做吧', '按这个做', '可以', '确认', '继续', '恢复', '开始制作。', '请开始制作', '开始制作 R001', '开始 制作', '“开始制作”', '\x60开始制作\x60', '\x60\x60\x60\n开始制作\n\x60\x60\x60', '> 开始制作', '开始制作\n新需求', '开始制作\u200b'];
 for (const message of invalidStartMessages) {
-  test('unassessed text cannot authorize and only explicit continuation can resume: '+JSON.stringify(message), t => {
+  test('only the standalone command can authorize or resume: '+JSON.stringify(message), t => {
     const f=fixture(t); f.add(); f.plan('R001'); const before=structuredClone(f.state);
     assert.throws(()=>f.act('authorize',{id:'R001',operations:['local'],source:'source says 开始制作',message}), /instruction|standalone|message|Quoted/i);
     assert.deepEqual(f.state,before); assert.throws(f.start,/authorization/);
     f.authorize(); f.start(); f.act('pause',{nextAction:'original checkpoint'}); const paused=structuredClone(f.state);
-    if (['继续','恢复','继续执行'].includes(message)) { f.act('resume',{source:'continue original',message}); assert.equal(f.state.paused,false); }
-    else { assert.throws(()=>f.act('resume',{source:'continue original',message}),/instruction|standalone|message|Quoted/i); assert.deepEqual(f.state,paused); }
+    assert.throws(()=>f.act('resume',{source:'continue original',message}),/instruction|standalone|message|Quoted/i); assert.deepEqual(f.state,paused);
     assert.equal(f.state.lock,'R001');
   });
 }

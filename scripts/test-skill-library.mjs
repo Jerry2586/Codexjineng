@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { addSkill, registerSource, listLibrary, scanLibrary, updateLibrary, rollbackSkill, recoverLibrary, fileHash, isLibraryUpdateCommand } from '../skills/auto-dev/scripts/skill-library.mjs';
 import { catalog } from '../skills/auto-dev/scripts/skill-catalog.mjs';
@@ -241,4 +242,25 @@ test('A06 repeated Git blobs are bounded by expanded bytes before writing and le
  assert.throws(()=>f.add(),/32 MiB|size/i);
  assert.equal(fs.existsSync(f.installed('alpha')),false);
  const staging=path.join(f.options.library,'staging');assert.deepEqual(fs.readdirSync(staging),[]);
+});
+
+
+test('R003 recovery preflights parked originals before removing the installed version', t => {
+ for(const conflict of ['changed','missing']) {
+  const f=fixture(t);f.add();const old=listLibrary(f.options).skills[0];
+  const id=crypto.randomUUID(),target=old.path;
+  const stage=path.join(f.skillsRoot,'.skill-library-stage-'+id),parked=path.join(f.skillsRoot,'.skill-library-old-'+id);
+  if(conflict==='changed') {
+   fs.cpSync(target,stage,{recursive:true});fs.renameSync(target,parked);fs.renameSync(stage,target);
+   fs.writeFileSync(path.join(parked,'data.txt'),'later original edits');
+  }
+  fs.writeFileSync(path.join(target,'data.txt'),'new installed version');
+  const newHash=fileHash(target),journal=path.join(f.options.library,'pending.json');
+  fs.writeFileSync(journal,JSON.stringify({schemaVersion:1,id,skillId:'alpha',target,stage,parked,oldHash:old.installedHash,newHash,previous:old}));
+  assert.throws(()=>recoverLibrary(f.options),/missing|changed/);
+  assert.equal(fs.existsSync(target),true,'rejected recovery must retain installed files');
+  assert.equal(fileHash(target),newHash);
+  if(conflict==='changed')assert.equal(fs.readFileSync(path.join(parked,'data.txt'),'utf8'),'later original edits');
+  assert.equal(fs.existsSync(journal),true);
+ }
 });

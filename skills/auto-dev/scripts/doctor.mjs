@@ -46,12 +46,13 @@ function installationReport(source,installed,entries){
  return {status:problems.length?'needs-attention':'aligned',root:installed,packages};
 }
 function ledgerReport(root){
+ const writeLockPresent=fs.existsSync(path.join(root,'auto-dev-state.json.lock'));
  if(!fs.existsSync(path.join(root,'auto-dev-state.json'))){
   const legacy=['auto-dev-ledger.md','.codex/auto-dev-ledger.md'].filter(file=>fs.existsSync(path.join(root,file)));
-  return {status:legacy.length?'legacy':'absent',legacy,tasks:[],pending:[]};
+  return {status:legacy.length?'legacy':'absent',writeLockPresent,legacy,tasks:[],pending:[]};
  }
  let state;
- try{state=readState(root);}catch(error){return {status:'invalid',reason:error.message,tasks:[],pending:[]};}
+ try{state=readState(root);}catch(error){return {status:'invalid',writeLockPresent,reason:error.message,tasks:[],pending:[]};}
  const tasks=state.tasks.map(task=>{
   const item={id:task.id,title:task.title,status:task.status,scope:task.scope,planVersion:task.planVersion,nextAction:task.nextAction,authorization:{valid:validAuthorization(task.authorization,task.scope)&&task.authorization.planVersion===task.planVersion,operations:task.authorization?.operations??[]}};
   try{
@@ -63,7 +64,7 @@ function ledgerReport(root){
  });
  const pending=state.tasks.flatMap(task=>(task.operations??[]).filter(op=>op.status==='pending').map(op=>({id:task.id,key:op.key,operation:op.operation})));
  const round=roundReport(state,root);
- return {status:'readable',project:state.project,schemaVersion:state.schemaVersion,revision:state.revision,round:{id:state.round.id,status:state.round.status,valid:round.valid,reason:round.reason},session:state.session,paused:state.paused,lock:state.lock,writeLockPresent:fs.existsSync(path.join(root,'auto-dev-state.json.lock')),tasks,pending};
+ return {status:'readable',project:state.project,schemaVersion:state.schemaVersion,revision:state.revision,round:{id:state.round.id,status:state.round.status,valid:round.valid,reason:round.reason},session:state.session,paused:state.paused,lock:state.lock,writeLockPresent,tasks,pending};
 }
 export function doctor(project,{source=defaultSource,installed,aociBinary}={}){
  const root=canonicalRoot(project),sourceRoot=path.resolve(source),installedRoot=installed?path.resolve(installed):null,errors=[];
@@ -86,10 +87,10 @@ export function doctor(project,{source=defaultSource,installed,aociBinary}={}){
  else if(ledger.writeLockPresent)nextAction='先核实账本写锁的进程与状态，不自动删除锁。';
  else if(installation.status==='needs-attention')nextAction='检查安装差异，使用带备份安装器同步核心与缺失技能，保留用户定制。';
  else if(ledger.tasks.some(t=>t.error||t.drift||t.status==='completed'&&!t.completion?.valid))nextAction='核对源码变化和历史完成证据；需复验的完成项显式 reopen，保留历史。';
- else if(ledger.paused)nextAction='任务保持暂停，等待用户明确继续原授权范围。';
+ else if(ledger.paused)nextAction='任务保持暂停，等待用户独立发送“开始制作”恢复原授权范围。';
  else if(ledger.lock)nextAction=ledger.tasks.find(t=>t.id===ledger.lock)?.nextAction??'核对当前任务范围与证据。';
  else if(aociIssue)nextAction=aoci.nextAction;
- const findings=(aociIssue?1:0)+errors.length+(sourceProfiles.status!=='current'?1:0)+(installation.profiles?.status==='needs-attention'?1:0)+installation.packages.filter(p=>['missing','core-diff','error'].includes(p.status)).length+ledger.pending.length+ledger.tasks.filter(t=>t.error||t.drift||t.status==='completed'&&!t.completion?.valid).length+(ledger.status==='invalid'?1:0);
+ const findings=(ledger.writeLockPresent?1:0)+(aociIssue?1:0)+errors.length+(sourceProfiles.status!=='current'?1:0)+(installation.profiles?.status==='needs-attention'?1:0)+installation.packages.filter(p=>['missing','core-diff','error'].includes(p.status)).length+ledger.pending.length+ledger.tasks.filter(t=>t.error||t.drift||t.status==='completed'&&!t.completion?.valid).length+(ledger.status==='invalid'?1:0);
  return {contractVersion:CONTRACT_VERSION,projectRoot:root,status:findings?'needs-attention':'checked',source:{root:sourceRoot,packageCount:entries.filter(e=>e.kind!=='role').length,fingerprint:digest(JSON.stringify(entries.map(e=>[path.relative(sourceRoot,e.path).split(path.sep).join('/'),e.sha256,e.version]))),profiles:sourceProfiles,errors},installation,ledger,aoci,nextAction};
 }
 export function handoff(report){
