@@ -16,3 +16,18 @@ test('doctor distinguishes core changes, user customization and missing packages
 
 test('doctor checks only an explicitly supplied absolute diagnostic binary and surfaces incompatible versions',t=>{const root=fixture(t),script=fileURLToPath(new URL('../skills/auto-dev/scripts/doctor.mjs',import.meta.url));const result=spawnSync(process.execPath,[script,root,'--aoci-binary',process.execPath,'--json'],{encoding:'utf8'});assert.equal(result.status,2,result.stderr);const report=JSON.parse(result.stdout);assert.equal(report.aoci.binary,process.execPath);assert.equal(report.aoci.cli,'available');assert.equal(report.aoci.versionOutput,process.version);assert.equal(report.aoci.contractMatch,false);assert.equal(report.aoci.mcp,'unverified');assert.equal(fs.existsSync(path.join(root,'auto-dev-state.json')),false);assert.match(handoff(report),/CLI available/);});
 test('doctor rejects relative or missing explicit AOCI paths',t=>{const root=fixture(t);assert.throws(()=>doctor(root,{aociBinary:'aoci'}),/absolute binary path/);const script=fileURLToPath(new URL('../skills/auto-dev/scripts/doctor.mjs',import.meta.url));const result=spawnSync(process.execPath,[script,root,'--aoci-binary'],{encoding:'utf8'});assert.equal(result.status,1);assert.match(result.stderr,/requires a path/);});
+
+for (const initialized of [true, false]) test('doctor flags a write lock without deleting it; initialized='+initialized, t=>{
+ const root=fixture(t);
+ if(initialized)initialize(root,'test','session');
+ const lock=path.join(root,'auto-dev-state.json.lock'),bytes=JSON.stringify({pid:2147483647,at:'2026-01-01T00:00:00Z'});
+ fs.writeFileSync(lock,bytes);
+ const before=fs.readdirSync(root).sort(),ledger=initialized?fs.readFileSync(path.join(root,'auto-dev-state.json'),'utf8'):null;
+ const script=fileURLToPath(new URL('../skills/auto-dev/scripts/doctor.mjs',import.meta.url));
+ const result=spawnSync(process.execPath,[script,root,'--json'],{encoding:'utf8'});
+ assert.equal(result.status,2,result.stderr||result.stdout);
+ const report=JSON.parse(result.stdout);
+ assert.equal(report.status,'needs-attention');assert.equal(report.ledger.writeLockPresent,true);assert.match(report.nextAction,/写锁/);
+ assert.equal(fs.readFileSync(lock,'utf8'),bytes);assert.deepEqual(fs.readdirSync(root).sort(),before);
+ if(initialized)assert.equal(fs.readFileSync(path.join(root,'auto-dev-state.json'),'utf8'),ledger);
+});

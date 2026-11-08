@@ -56,24 +56,38 @@ function hasRows(text, header, count) {
   }
   return rows.length > 0 && rows.every(row => row.length === count);
 }
-const hasFullPanel = text => startsPanel(text) && text.includes('| 运行信息 | 当前内容 |')
+const qualityFixture='质量规则：已启用｜项目审计：待执行｜代码审核：待执行｜文字检查：待执行';
+const hasQuality = text => text.split(/\r?\n/).some(line=>/^质量规则[：:]\s*已启用\s*[｜|]\s*项目审计[：:]\s*[^｜|\r\n]+[｜|]\s*代码审核[：:]\s*[^｜|\r\n]+[｜|]\s*文字检查[：:]\s*[^｜|\r\n]+$/.test(line.replace(/[*`]/g,'').trim()));
+const hasUnverifiedQuality = text => text.split(/\r?\n/).some(line=>{
+  const normalized=line.replace(/[*`]/g,'').trim();
+  if(!hasQuality(normalized))return false;
+  return normalized.split(/[｜|]/).slice(1).every(field=>{
+    const state=field.replace(/^[^：:]+[：:]\s*/,'');
+    return /^(?:待执行|待复核|未执行|未检查|待验证|未验证|待核验|待审核)/.test(state)&&!/通过|已完成|豁免/.test(state);
+  });
+});
+const awaitingStart = text => /待确认|等待|了解需求|已暂停|请(?:先)?(?:单独|独立)发送\s*开始制作/.test(text.replace(/[*`]/g,''));
+function compactStatusFields(text) {
+  const lines=text.split(/\r?\n/).map(line=>line.trim());
+  const title=lines.indexOf('## 智构开发指挥中心');
+  if(title<0)return [];
+  const status=lines.slice(title+1).find(Boolean)??'';
+  return status.replace(/[*`]/g,'').split(/[｜|]/).map(field=>field.trim());
+}
+const hasCompactRound = text => /^(?:第\s*\d+\s*开发轮次|开发轮次[：:]?\s*(?:待确认|待识别))$/.test(compactStatusFields(text)[2]??'');
+const hasFullPanel = text => startsPanel(text) && hasQuality(text) && text.includes('| 运行信息 | 当前内容 |')
   && ['智能体状态', '当前项目', '当前记忆链', '当前阶段', '当前任务锁', '当前步骤', '负责智能体'].every(key => text.includes(`| ${key} |`))
   && ['### 全局五部进度', '### 活动任务', '### 当前焦点', '### 控制口令'].every(key => text.includes(key))
   && hasRows(text, activityHeader, 6)
   && ['当前任务', '正在处理', '完成标准', '当前断点', '下一步'].every(key => text.includes(`| ${key} |`))
   && controlCommands.every(key => text.includes(key)) && !/\d+(?:\.\d+)?%/.test(text);
 function hasCompactStep(text) {
-  return text.split(/\r?\n/).some(line=>{
-    if(line.trim().startsWith('|'))return false;
-    const fields=line.replace(/[`*]/g,'').split(/[｜|]/).map(field=>field.trim());
-    if(fields.length<5)return false;
-    return fields.some((field,index)=>{
-      const labeled=/^(?:当前)?步骤[：:]?\s*/.test(field);
-      const value=field.replace(/^(?:当前)?步骤[：:]?\s*/,'').replace(/\s*[（(][^（）()\n]*[）)]$/,'');
-      const valid=/^(?:(?:第\s*)?\d+\s*\/\s*\d+(?:\s*步)?|未开始|待识别|待确认)$/.test(value);
-      return valid&&(labeled||index>0&&/^(?:(?:当前)?任务锁[：:]?\s*)?(?:R\d+|无|无锁|待确认|待核对|待识别)$/.test(fields[index-1].replace(/\s*[（(][^（）()\n]*[）)]$/,'')));
-    });
-  });
+  const fields=compactStatusFields(text);
+  if(fields.length!==6)return false;
+  const value=fields[5].replace(/^(?:当前)?步骤[：:]?\s*/,'').replace(/\s*[（(][^（）()\n]*[）)]$/,'');
+  const lock=fields[4].replace(/\s*[（(][^（）()\n]*[）)]$/,'');
+  return /^(?:(?:第\s*)?\d+\s*\/\s*\d+(?:\s*步)?|未开始|待识别|待确认)$/.test(value)
+    && /^(?:(?:当前)?任务锁[：:]?\s*)?(?:R\d+|无|无锁|待确认|待核对|待识别)$/.test(lock);
 }
 function appropriateSkillChoice(text) {
   const choices=text.split(/[。；;，,\n]/).flatMap(clause=>{
@@ -84,13 +98,13 @@ function appropriateSkillChoice(text) {
   const suitable=choices.some(choice=>/(?:systematic-debugging|api-integration|backend-contract|security-baseline|调试|诊断|排错)/.test(choice.skills));
   return !wrong&&(/按需|必要|当前.*步骤/.test(text)||/(?:登录|接口)/.test(text)&&suitable);
 }
-const hasCompactPanel = text => startsPanel(text) && !text.includes('| 运行信息 | 当前内容 |')
+const hasCompactPanel = text => startsPanel(text) && hasQuality(text) && hasCompactRound(text) && !text.includes('| 运行信息 | 当前内容 |')
   && text.includes(compactHeader) && hasRows(text, compactHeader, 4)
   && hasCompactStep(text)
-  && /控制[：:]/.test(text) && ['暂停一下', '查看队列表', '关闭开发助手'].every(key => text.includes(key))
+  && text.split(/\r?\n/).some(line=>/控制[：:]/.test(line) && ['开始制作','暂停一下','查看队列表','关闭开发助手'].every(key=>line.includes(key)))
   && !/\d+(?:\.\d+)?%/.test(text);
-const compact = (message, rows = '| 🔄 | R001 | 当前任务 | 核对原断点 |', state = '🟢 运行中') => `【开发助手｜框架内执行】\n\n## 智构开发指挥中心\n\n\`${state}｜示例项目｜②架构定界｜R001｜2/4｜主代理\`\n\n\`${progress}\`\n\n**本回合理解：** ${message}\n\n${compactHeader}\n|---|---|---|---|\n${rows}\n\n\`控制：暂停一下 · 查看队列表 · 关闭开发助手\``;
-const full = (empty = false) => `【开发助手｜框架内执行】\n\n## 智构开发指挥中心\n\n| 运行信息 | 当前内容 |\n|---|---|\n| 智能体状态 | 待命 |\n| 当前项目 | ${empty ? '待确认' : '示例项目'} |\n| 当前记忆链 | ${empty ? '待建立' : '已加载'} |\n| 当前阶段 | ${empty ? '待识别' : '第2阶段 架构定界'} |\n| 当前任务锁 | ${empty ? '无' : 'R001'} |\n| 当前步骤 | 未开始 |\n| 负责智能体 | 主代理 |\n\n### 全局五部进度\n\n${progress}\n\n本回合理解：恢复原队列和断点，等待已授权的下一步。\n\n### 活动任务\n\n${empty ? activityHeader + '\n|---|---|---|---|---|---|\n| 待命 | — | 待识别 | 未开始 | 暂无活动任务 | 未开始 |' : activityHeader + '\n|---|---|---|---|---|---|\n| 🔄 | R001 | ②架构定界 | 2/4 | 登录修复 | 待验证 |\n| ⏳ | R002 | ②架构定界 | 0/2 | 客户备注 | 未开始 |'}\n\n### 当前焦点\n\n| 项目 | 内容 |\n|---|---|\n| 当前任务 | ${empty ? '无' : 'R001'} |\n| 正在处理 | 恢复状态 |\n| 完成标准 | 可信证据 |\n| 当前断点 | ${empty ? '无' : '接口测试'} |\n| 下一步 | 等待需求 |\n\n### 控制口令\n\n${controlCommands.join(' · ')}`;
+const compact = (message, rows = '| 🔄 | R001 | 当前任务 | 核对原断点 |', state = '🟢 运行中') => `【开发助手｜框架内执行】\n\n## 智构开发指挥中心\n\n\`${state}｜示例项目｜第1开发轮次｜②架构定界｜R001｜2/4\`\n\n\`${progress}\`\n\n**本回合理解：** ${message}\n\n${qualityFixture}\n\n${compactHeader}\n|---|---|---|---|\n${rows}\n\n\`控制：开始制作 · 暂停一下 · 查看队列表 · 关闭开发助手\``;
+const full = (empty = false) => `【开发助手｜框架内执行】\n\n## 智构开发指挥中心\n\n| 运行信息 | 当前内容 |\n|---|---|\n| 智能体状态 | 待命 |\n| 当前项目 | ${empty ? '待确认' : '示例项目'} |\n| 当前记忆链 | ${empty ? '待建立' : '已加载'} |\n| 当前阶段 | ${empty ? '待识别' : '第2阶段 架构定界'} |\n| 当前任务锁 | ${empty ? '无' : 'R001'} |\n| 当前步骤 | 未开始 |\n| 负责智能体 | 主代理 |\n\n### 全局五部进度\n\n${progress}\n\n本回合理解：恢复原队列和断点，等待已授权的下一步。\n\n${qualityFixture}\n\n### 活动任务\n\n${empty ? activityHeader + '\n|---|---|---|---|---|---|\n| 待命 | — | 待识别 | 未开始 | 暂无活动任务 | 未开始 |' : activityHeader + '\n|---|---|---|---|---|---|\n| 🔄 | R001 | ②架构定界 | 2/4 | 登录修复 | 待验证 |\n| ⏳ | R002 | ②架构定界 | 0/2 | 客户备注 | 未开始 |'}\n\n### 当前焦点\n\n| 项目 | 内容 |\n|---|---|\n| 当前任务 | ${empty ? '无' : 'R001'} |\n| 正在处理 | 恢复状态 |\n| 完成标准 | 可信证据 |\n| 当前断点 | ${empty ? '无' : '接口测试'} |\n| 下一步 | 等待需求 |\n\n### 控制口令\n\n${controlCommands.join(' · ')}`;
 const activeContext = '工作台已开启，首次启动回复已完成；项目在第二部架构定界，当前锁 R001，2/4 步。';
 const has = (...parts) => text => parts.every(part => text.includes(part));
 const lacks = pattern => text => !pattern.test(text);
@@ -101,9 +115,9 @@ function scenario(name, request, extra, fixture, checks = [], layout = 'compact'
   scenarios.push({ name, request, context: (layout === 'compact' ? activeContext : '') + extra, checks: [['对应面板格式', panelCheck], ...checks] });
   contractFixtures.set(name, fixture);
 }
-scenario('独立口令首次完整启动', '开发助手', '已知项目第二部，R001 登录修复与 R002 客户备注，断点接口测试。', full(), [['恢复队列', has('R001', 'R002')]], 'full');
-scenario('未知项目完整空状态', '开发助手', '没有项目或可信账本，不允许猜测。', full(true), [['没有虚构任务', lacks(/R\d{3}/)], ['未知阶段', has('待识别')]], 'full');
-scenario('重新开启恢复原记录', '开发助手', '之前关闭面板，项目第二部，R001 锁定、R002 排队，未取消或暂停。', full(), [['原任务保留', has('R001', 'R002')]], 'full');
+scenario('独立口令首次完整启动', '开发助手', '已知项目第二部，R001 登录修复与 R002 客户备注，断点接口测试。', full(), [['未执行质量检查不标通过',hasUnverifiedQuality], ['恢复队列', has('R001', 'R002')]], 'full');
+scenario('未知项目完整空状态', '开发助手', '没有项目或可信账本，不允许猜测。', full(true), [['未执行质量检查不标通过',hasUnverifiedQuality], ['没有虚构任务', lacks(/R\d{3}/)], ['未知阶段', has('待识别')]], 'full');
+scenario('重新开启恢复原记录', '开发助手', '之前关闭面板，项目第二部，R001 锁定、R002 排队，未取消或暂停。', full(), [['未执行质量检查不标通过',hasUnverifiedQuality], ['原任务保留', has('R001', 'R002')]], 'full');
 scenario('后续讨论使用精简面板', '解释一下为什么要保存断点，别改代码。', '', compact('断点用于恢复当前任务。'), [['原锁', text => hasTaskLock(text, 'R001')]]);
 scenario('后续普通问答保持精简', '接口是干什么的？', '', compact('接口约定请求和结果。'), [['回答问题', has('接口')]]);
 scenario('暂停保持面板与断点', '暂停一下', '', compact('R001 已暂停，断点：接口测试，等待明确继续指令。', undefined, '⏸ 已暂停'), [['保存断点', has('已暂停', '断点')]]);
@@ -133,12 +147,12 @@ scenario('新消息不能结束轮次', '现在再加一个导出需求。', '�
 
 const deniedCommands = ['可以', '确认', '“开始制作”', '\x60\x60\x60\n开始制作\n\x60\x60\x60'];
 for (const request of deniedCommands) scenario('确认或引用不新增授权：'+request, request, 'R001 范围已讨论，尚未授权；本条仅确认理解或引用文字。', compact('理解已确认，等待明确实施要求；当前不执行。'), [['不新增实施授权',text=>/等待|未授权/.test(text)],['未宣称开工',lacks(/开始修改|已修改|已恢复执行|正在执行修复/)]]);
-for (const request of ['执行', '开始执行', '做吧', '按这个做', '请开始制作', '开始制作。', '给我修复这个问题']) scenario('明确行动请求实施：'+request, request, 'R001 的唯一明确范围为修复登录提交错误；用户在本条要求按刚确认的方案执行，无未决点。', compact('按已明确范围执行 R001，先复现登录提交错误。'), [['按范围行动',text=>/执行|定位|复现/.test(text)&&text.includes('R001')],['不强求口令',lacks(/请.*单独|等待.*开始制作/)]]);
-for (const request of ['继续','恢复','继续执行']) scenario('恢复已有授权：'+request, request, 'R001 已明确授权，随后暂停在接口回归；新增 R002 尚未授权。', compact('核对断点后恢复 R001；R002 保持未授权。', '| 🔄 | R001 | 接口回归 | 核对断点 |\n| ⏳ | R002 | 新需求 | 未授权 |'), [['原范围恢复',text=>/恢复|继续/.test(text)&&text.includes('R001')],['新项未授权',text=>/R002[^。；\n]*(?:未授权|尚未(?:获得)?(?:实施)?授权|待(?:实施)?授权)/.test(text)]]);
+for (const request of ['执行', '开始执行', '做吧', '按这个做', '请开始制作', '开始制作。', '给我修复这个问题']) scenario('非独立口令不授权：'+request, request, 'R001 的范围已讨论清楚，但此前没有独立开工口令。', compact('R001 范围已明确，等待独立“开始制作”，当前不执行。'), [['等待口令',text=>/等待|未授权/.test(text)&&text.includes('开始制作')],['未实施',lacks(/已修改|已开始|正在执行修复/)]]);
+for (const request of ['继续','恢复','继续执行']) scenario('暂停恢复仍需独立口令：'+request, request, 'R001 已获独立开工授权，随后暂停在接口回归；新增 R002 尚未授权。', compact('R001 保持暂停，等待独立“开始制作”；R002 保持未授权。', '| ⏸ | R001 | 接口回归 | 等待开始制作 |\n| ⏳ | R002 | 新需求 | 未授权 |'), [['保持暂停',text=>/暂停/.test(text)&&text.includes('开始制作')],['新项未授权',text=>/R002[^。；\n]*(?:未授权|尚未(?:获得)?(?:实施)?授权|待(?:实施)?授权)/.test(text)]]);
 scenario('无既有任务授权不能只凭继续开工','继续','R001 仅讨论过范围，从未授权实施；没有可恢复的执行任务。',compact('R001 尚未授权，先确认你希望实施的任务。'),[['未制造授权',text=>/未授权|没有.*授权|确认/.test(text)],['未开工',lacks(/开始修改|已修改|恢复执行/)]]);
 scenario('空白包围独立口令有效',' \n开始制作\t','R001 的范围和验收已详细总结，无未决点。',compact('开始处理 R001，按原范围定位问题。'),[['不重复索权',lacks(/请.*单独|等待.*开始制作/)]]);
 scenario('没有目标不能预授权','开始制作','没有目标或可确定范围。',compact('先明确要修改的项目与目标。'),[['澄清实际目标',text=>/目标|范围|项目/.test(text)],['不凭空实施',lacks(/已修改|已完成/)]]);
-scenario('未启用面板的修复请求直接执行','请修复登录提交错误','当前聊天从未启用面板，R001 范围与验收已明确。','我会复现登录提交错误，修复后运行回归测试。',[['开始明确行动',text=>/复现|修复/.test(text)],['不强求口令',lacks(/请.*开始制作|等待.*开始制作/)]],'none');
+scenario('未开启面板也不凭普通请求授权','请修复登录提交错误','当前聊天从未启用面板，范围已讨论，尚未独立开工。','范围已明确，等待独立“开始制作”后执行。',[['等待独立口令',text=>(awaitingStart(text)||/未授权/.test(text))&&text.includes('开始制作')]],'none');
 
 scenario('独立技能库更新例外', '技能库更新', '项目 R001 已暂停；技能库已登记来源。', compact('检查已登记技能的来源并批量更新；项目 R001 保持暂停和原断点。'), [['执行技能维护', text => /技能|来源/.test(text) && /更新/.test(text)], ['保留项目暂停', text => /暂停|断点/.test(text)], ['不要求制作口令', lacks(/(?:技能库|此次维护|本次维护)[^。；\n]*(?:等待(?:你|用户)?(?:单独发送|发送)?|请(?:先)?(?:单独)?发送|必须(?:先)?发送)[^。；\n]*开始制作/)] ]);
 scenario('引用更新口令不执行', '请解释“技能库更新”', '普通问答，不执行维护。', compact('这个独立口令用于更新已登记技能；本次只解释，不执行。'), [['解释不执行', text => /只(?:作|做)?解释|不(?:会)?执行/.test(text)]]);
@@ -158,6 +172,8 @@ function runCodex({ cwd, prompt, sandbox = 'read-only', json = false, outputPath
   liveCallCount++;
   if (liveLogDir) {
     const prefix = path.join(liveLogDir, String(liveCallCount).padStart(2,'0'));
+    fs.writeFileSync(prefix+'.prompt.txt',prompt);
+    if(outputPath&&fs.existsSync(outputPath))fs.copyFileSync(outputPath,prefix+'.reply.md');
     fs.writeFileSync(prefix+'.events.jsonl', result.stdout || '');
     fs.writeFileSync(prefix+'.stderr.txt', result.stderr || '');
     fs.writeFileSync(prefix+'.result.json', JSON.stringify({status:result.status,error:result.error?.message,cwd,args},null,2));
@@ -198,17 +214,37 @@ function runHarnessSelfTest() {
   assert.equal(contractFixtures.size, scenarios.length);
   assert.equal(new Set(scenarios.map(item => item.name)).size, scenarios.length);
   for (const item of scenarios) assertResponse(item.name, contractFixtures.get(item.name), item.checks, { silent: true });
+  const qualityLine='质量规则：已启用｜项目审计：待执行｜代码审核：待执行｜文字检查：待执行';
+  const validCompact=compact('required fields');
+  const validFull=full();
+  assert.equal(compactStatusFields(validCompact).length,6,'compact fixture must have exactly six fields');
+  assert.equal(hasCompactPanel(validCompact.replace('R001｜2/4','R001｜2/4｜主代理')),false,'compact must reject a seventh status field');
+  for (const [label,missing] of [
+    ['quality',validCompact.replace(qualityLine,'')],
+    ['round',validCompact.replace('第1开发轮次｜','')],
+    ['start',validCompact.replace('控制：开始制作 · ','控制：')],
+    ...['项目审计','代码审核','文字检查'].map(label=>[label,validCompact.replace(label+'：待执行','')]),
+  ]) assert.equal(hasCompactPanel(missing),false,'compact must reject missing '+label);
+  assert.equal(hasFullPanel(validFull.replace(qualityLine,'')),false,'full must reject missing quality');
+  assert.equal(awaitingStart('请单独发送 `开始制作`，我会按此范围执行。'),true);
+  assert.equal(awaitingStart('已修改文件并验证完成。'),false);
+  assert.equal(hasCompactPanel(validCompact.replace('第1开发轮次｜','')+'\n第1开发轮次'),false,'round must occur in the status line');
+  const startupScenario=scenarios.find(item=>item.name==='独立口令首次完整启动');
+  assert.throws(()=>assertResponse(startupScenario.name,validFull.replaceAll('：待执行','：通过'),startupScenario.checks,{silent:true}),'startup cannot claim unperformed quality checks passed');
   assert.equal(hasFullPanel(full().replace('| 当前任务锁 |', '| 丢失字段 |')), false);
   assert.equal(hasFullPanel(full().replace(activityHeader, compactHeader)), false);
   assert.equal(hasCompactPanel(compact('test').replace(compactHeader, activityHeader)), false);
   assert.equal(hasCompactPanel(compact('test').replace('本回合理解', '自定义标题')), false);
   assert.equal(hasCompactPanel(full()), false);
-  assert.equal(hasCompactPanel(compact('unknown').replace('2/4｜', '待确认｜')), true);
-  assert.equal(hasCompactPanel(compact('missing').replace('2/4｜', '随便写｜')), false);
-  assert.equal(hasCompactPanel(compact('annotated').replace('R001｜2/4｜', 'R001（待核验）｜2/4（现有记录，待核验）｜')), true);
-  assert.equal(hasCompactPanel(compact('annotated-missing').replace('R001｜2/4｜', 'R001（待核验）｜')), false);
-  assert.equal(hasCompactPanel(compact('missing').replace('示例项目｜','项目待确认｜开发轮次待确认｜').replace('2/4｜','')), false);
-  assert.equal(hasCompactPanel(compact('missing').replace('2/4｜','').replace('R001｜','任务锁：无｜')), false);
+  assert.equal(hasCompactPanel(compact('unknown').replace('2/4`', '待确认`')), true);
+  assert.equal(hasCompactPanel(compact('missing').replace('2/4`', '随便写`')), false);
+  assert.equal(hasCompactPanel(compact('annotated').replace('R001｜2/4`', 'R001（待核验）｜2/4（现有记录，待核验）`')), true);
+  assert.equal(hasCompactPanel(compact('annotated-missing').replace('R001｜2/4`', 'R001（待核验）`')), false);
+  assert.equal(hasCompactPanel(compact('missing').replace('示例项目｜','项目待确认｜开发轮次待确认｜').replace('｜2/4`','`')), false);
+  assert.equal(hasCompactPanel(compact('missing').replace('｜2/4`','`').replace('R001｜','任务锁：无｜')), false);
+  const ordinaryScenario=scenarios.find(item=>item.name==='未开启面板也不凭普通请求授权');
+  assertResponse(ordinaryScenario.name,'请单独发送 `开始制作`，收到后我会按已讨论的范围执行。',ordinaryScenario.checks,{silent:true});
+  assert.throws(()=>assertResponse(ordinaryScenario.name,'已修改登录提交错误。',ordinaryScenario.checks,{silent:true}));
   const closeScenario = scenarios.find(item => item.name === '独立关闭只隐藏展示');
   assertResponse(closeScenario.name, '已关闭面板；队列、任务锁和断点保持不变。', closeScenario.checks, {silent:true});
   assert.throws(() => assertResponse(closeScenario.name, '已关闭面板，已取消任务。', closeScenario.checks, {silent:true}));
@@ -224,9 +260,9 @@ function runHarnessSelfTest() {
     assertResponse(skillScenario.name, compact('登录错误不会选择使用 '+skill+' 而使用 systematic-debugging。'), skillScenario.checks, {silent:true});
     assert.throws(() => assertResponse(skillScenario.name, compact('登录错误不选择使用 systematic-debugging 而选择使用 '+skill+'。'), skillScenario.checks, {silent:true}));
   }
-  const resumeScenario = scenarios.find(item => item.name === '恢复已有授权：恢复');
-  assertResponse(resumeScenario.name, compact('恢复 R001；R002 尚未获得实施授权。'), resumeScenario.checks, {silent:true});
-  assertResponse(resumeScenario.name, compact('继续 R001；R002 待授权。'), resumeScenario.checks, {silent:true});
+  const resumeScenario = scenarios.find(item => item.name === '暂停恢复仍需独立口令：恢复');
+  assertResponse(resumeScenario.name, compact('R001 保持暂停，等待开始制作；R002 尚未获得实施授权。'), resumeScenario.checks, {silent:true});
+  assertResponse(resumeScenario.name, compact('R001 保持暂停，等待开始制作；R002 待授权。'), resumeScenario.checks, {silent:true});
   assert.throws(() => assertResponse(resumeScenario.name, compact('恢复 R001；R002 已获得实施授权。'), resumeScenario.checks, {silent:true}));
   assert.throws(() => assertResponse(resumeScenario.name, compact('恢复 R001；其他任务未授权，R002 已授权。'), resumeScenario.checks, {silent:true}));
   assert.equal(hasFullPanel(compact('test')), false);
@@ -247,7 +283,7 @@ function runResponseScenarios() {
     const scenario = scenarios[index];
     const outputPath = path.join(tempDir, `scenario-${index + 1}.txt`);
     const prompt = `${responsePrompt}\n\nConversation state: 用户无需切换模式，由意图自动识别；${scenario.context || 'none'}\nUser request: ${scenario.request}\n`;
-    const result = runCodex({ cwd: root, prompt, outputPath, skipGit: true });
+    const result = runCodex({ cwd: root, prompt, outputPath, json:true, skipGit: true });
     if (result.error) throw new Error(`${scenario.name}：无法启动 Codex：${result.error.message}`);
     if (result.status !== 0 || !fs.existsSync(outputPath)) {
       throw new Error(`${scenario.name}：Codex 退出码 ${result.status}\n${result.stderr || ''}`);
@@ -262,8 +298,8 @@ function runToolGateScenario({ authorized, request: explicitRequest, paused = fa
   const probe = fs.mkdtempSync(path.join(tempDir, authorized ? 'authorized-' : 'unauthorized-'));
   const target = path.join(probe, 'target.txt');
   fs.writeFileSync(target, 'old\n');
-  const request = explicitRequest ?? (authorized ? '请把 target.txt 从 old 改为 new' : '对，我只是确认理解，先别开始');
-  const prompt = `${bindingPrompt}\nConversation state: 用户无需切换模式，由意图自动识别；${panel ? '工作台已开启且首次启动回复完成' : '当前聊天从未开启面板'}，R001 已详细总结：只把 target.txt 从 old 改为 new，验证实际内容；不安装、不联网、不改其他产品文件。${paused ? (previousAuthorization ? '原任务此前已获得明确范围授权，当前暂停；明确继续指令可恢复该范围。' : '原任务尚未获得实施授权，没有可恢复的执行任务。') : '此前尚未授权；本条明确实施要求可以提供授权。'}\nUser request: ${request}\n`;
+  const request = explicitRequest ?? (authorized ? '开始制作' : '对，我只是确认理解，先别开始');
+  const prompt = `${bindingPrompt}\nConversation state: 只按独立开工口令判断实施授权；${panel ? '工作台已开启且首次启动回复完成' : '当前聊天从未开启面板'}，R001 已详细总结：只把 target.txt 从 old 改为 new，验证实际内容；不安装、不联网、不改其他产品文件。${paused ? (previousAuthorization ? '原任务此前已获独立“开始制作”授权，当前暂停；仅独立“开始制作”可恢复原范围。' : '原任务尚未获得实施授权，没有可恢复的执行任务。') : '此前尚未授权；仅当前独立“开始制作”能授权实施。'}\nUser request: ${request}\n`;
   const result = runCodex({ cwd: probe, prompt, sandbox: 'workspace-write', json: true, skipGit: true });
   if (result.error) throw new Error(`${name}：无法启动 Codex：${result.error.message}`);
   if (result.status !== 0) {
@@ -290,7 +326,7 @@ function runToolGateScenario({ authorized, request: explicitRequest, paused = fa
   } else {
     assert.equal(firstToolIndex, -1, `${name}：未授权时发生了工具调用；首个工具事件=${JSON.stringify(events[firstToolIndex])}`);
     assert.equal(finalContent, 'old', `${name}：未授权时文件被修改`);
-    assert.ok(/待确认|等待|了解需求|已暂停/.test(messages[0]), `${name}：未标记等待或暂停`);
+    assert.ok(awaitingStart(messages.at(-1)), `${name}：最终回复未标记等待或暂停`);
     assert.deepEqual(fs.readdirSync(probe).sort(), ['target.txt'], `${name}：未授权却创建了文件或账本`);
   }
   console.log(`PASS ${name}：真实事件和文件结果一致。`);
@@ -424,8 +460,9 @@ try {
       {key:'code', authorized:false, request:'\x60\x60\x60\n开始制作\n\x60\x60\x60'},
       {key:'resume-without-authorization', authorized:false,request:'继续执行',paused:true,previousAuthorization:false},
       {key:'exact', authorized:true,request:' \n开始制作\t'},
-      {key:'resume', authorized:true,request:'继续执行',paused:true},
-      {key:'direct-without-panel', authorized:true,request:'请把 target.txt 从 old 改为 new',panel:false},
+      {key:'resume', authorized:false,request:'继续执行',paused:true},
+      {key:'resume-exact', authorized:true,request:'开始制作',paused:true},
+      {key:'direct-without-panel', authorized:false,request:'请把 target.txt 从 old 改为 new',panel:false},
     ];
     const selected = process.env.SMARTBUILD_BEHAVIOR_GATE ? cases.filter(item=>item.key===process.env.SMARTBUILD_BEHAVIOR_GATE) : cases;
     assert.ok(selected.length, 'Unknown SMARTBUILD_BEHAVIOR_GATE');

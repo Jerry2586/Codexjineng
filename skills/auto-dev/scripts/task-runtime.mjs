@@ -493,7 +493,7 @@ export function transition(original, request, root) {
       insist(task && !TERMINAL.has(task.status), 'Task must be active');
       insist(!task.operations.some(op => op.status === 'pending'), 'Reconcile pending operation before cancelling');
       task.history.push({ at: now(), cancelled: reason() }); task.status = 'cancelled';
-      if (state.lock === task.id) state.lock = state.tasks.find(ACTIVE)?.id ?? null;
+      if (state.lock === task.id) state.lock = state.paused ? null : state.tasks.find(ACTIVE)?.id ?? null;
       break;
     case 'reorder': {
       insist(task && !TERMINAL.has(task.status) && !['running', 'paused', 'verifying', 'delivering', 'blocked'].includes(task.status), 'Cannot move executing/blocked task');

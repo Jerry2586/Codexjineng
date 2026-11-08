@@ -5,7 +5,7 @@ import { canonicalRoot, readState, summary } from './task-runtime.mjs';
 
 // Panel output is a pure function of the ledger: no timestamps, no randomness,
 // so golden-file comparison stays byte-stable.
-import { STAGES, STATUS, PANEL, CONTROL_FULL, CONTROL_SHORT } from './workflow-contract.mjs';
+import { STAGES, STATUS, TERMINAL_STATES, PANEL, CONTROL_FULL, CONTROL_SHORT } from './workflow-contract.mjs';
 
 function stageLine(current) {
   return STAGES.map((name, index) => {
@@ -72,7 +72,10 @@ function belongsTo(item, state) {
 }
 
 function qualityText(state) {
-  const task=currentTask(state), quality=state.checks?.find(check=>check.id===task?.id)?.quality;
+  const task=currentTask(state) ?? state.tasks.find(item=>!TERMINAL_STATES.includes(item.status)&&item.status!=='deferred')
+    ?? [...state.tasks].reverse().filter(item=>item.status==='completed')
+    .sort((a,b)=>(b.completedAt??'').localeCompare(a.completedAt??''))[0];
+  const quality=state.checks?.find(check=>check.id===task?.id)?.quality;
   const result=kind=>kind==='review'&&quality?.review_waived?'独立审核已豁免':quality?.[kind]===true?'已通过':'待执行或复核';
   return '质量规则：已启用｜项目审计：'+result('project_audit')+'｜代码审核：'+result('review')+'｜文字检查：'+result('text_review');
 }

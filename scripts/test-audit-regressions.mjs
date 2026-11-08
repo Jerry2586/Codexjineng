@@ -205,3 +205,44 @@ test('R003 deletion repairs can be recorded and still enforce the watched scope'
  assert.throws(()=>f.act('acceptance-result',{criterion:0,result:'passed',changes:['other.txt'],verification:'outside scope',artifact:f.proof()}),/outside task watch/);
  assert.throws(()=>f.act('acceptance-result',{criterion:0,result:'passed',changes:['../outside.txt'],verification:'outside project',artifact:f.proof()}),/escapes project/);
 });
+
+test('completed last task retains current quality in both panels without masking drift or queued work',t=>{
+ const f=fixture(t);f.finish();assert.equal(f.state.lock,null);
+ const save=()=>fs.writeFileSync(path.join(f.root,'auto-dev-state.json'),JSON.stringify(f.state));save();
+ for(const mode of ['compact','full']){
+  const output=renderPanel(f.root,{mode});
+  for(const name of ['项目审计','代码审核','文字检查'])assert.ok(output.includes(name+'：已通过'),output);
+ }
+ fs.writeFileSync(path.join(f.root,'app.txt'),'changed after completion');
+ for(const mode of ['compact','full'])assert.doesNotMatch(renderPanel(f.root,{mode}),/项目审计：已通过|代码审核：已通过|文字检查：已通过/);
+ fs.writeFileSync(path.join(f.root,'app.txt'),'v1');f.add();save();
+ for(const mode of ['compact','full'])assert.doesNotMatch(renderPanel(f.root,{mode}),/项目审计：已通过|代码审核：已通过|文字检查：已通过/);
+});
+
+for (const preauthorized of [false,true]) test('R003 cancelling while paused preserves the next task authorization: '+preauthorized, t => {
+ const f=fixture(t);f.add({title:'next task'});
+ f.act('plan',{id:'R002',steps:[{title:'next',input:'app',output:'app',verify:'test'}]});
+ if(preauthorized)f.act('authorize',{id:'R002',message:'开始制作',source:'fixture user',operations:['local']});
+ const authorization=structuredClone(f.state.tasks[1].authorization);
+ f.act('pause',{nextAction:'paused by user'});
+ f.act('cancel',{id:'R001',reason:'fixture user cancellation'});
+ assert.equal(f.state.paused,true);assert.equal(f.state.lock,null);
+ assert.deepEqual(f.state.tasks[1].authorization,authorization);
+ assert.throws(()=>f.act('start',{id:'R002'}),/paused|authorization/i);
+ assert.throws(()=>f.act('resume',{id:undefined,message:'继续',source:'fixture user'}));
+ assert.equal(f.state.paused,true);
+ f.act('resume',{id:undefined,message:'开始制作',source:'fixture user'});
+ assert.equal(f.state.paused,false);assert.notEqual(f.state.tasks[1].status,'blocked');
+ if(!preauthorized){
+  assert.throws(()=>f.act('start',{id:'R002'}),/authorization/i);
+  f.act('authorize',{id:'R002',message:'开始制作',source:'fixture user',operations:['local']});
+ }
+ f.act('start',{id:'R002'});assert.equal(f.state.lock,'R002');assert.equal(f.state.tasks[1].status,'running');
+});
+
+test('queued quality stays unverified after cancelling a paused successor of a completed task',t=>{
+ const f=fixture(t);f.add({title:'paused successor'});f.add({title:'queued successor'});f.finish();f.start('R002');f.act('pause',{nextAction:'paused by user'});f.act('cancel',{id:'R002',reason:'fixture cancellation'});
+ assert.equal(f.state.lock,null);assert.equal(f.state.tasks[0].status,'completed');assert.equal(f.state.tasks[2].status,'recorded');
+ const check=()=>{fs.writeFileSync(path.join(f.root,'auto-dev-state.json'),JSON.stringify(f.state));for(const mode of ['compact','full'])assert.doesNotMatch(renderPanel(f.root,{mode}),/项目审计：已通过|代码审核：已通过|文字检查：已通过/);};
+ check();f.act('resume',{id:undefined,message:'开始制作',source:'fixture user'});check();
+});
