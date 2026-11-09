@@ -7,36 +7,30 @@
       "dir": "animate",
       "file": "animate/SKILL.md",
       "name": "animate",
-      "sha256": "b8ede161270458e6ae2e45e8a1985373515d4c63de5568ddb0f9012d7634356c",
-      "version": "2ca1ca338f039e474987df678dcb358d428c31ec157f109784d7d5f83e881106",
+      "sha256": "39138996033e0dbe53e73217514116eaeca774bae84a0687c80d445a4e0cc3a6",
+      "version": "3a47be75482dd327248cc9d005c639520d636e65cb61110bb9bc690e238fc235",
       "needs": [
-        "frontend"
+        "writing"
       ],
       "domains": [
-        "web-animation"
+        "web-animation",
+        "writing"
       ],
       "excludeDomains": [],
       "explicitOnly": false,
-      "access": "write",
+      "access": "unspecified",
       "inputs": [
-        "current task scope",
-        "current source and constraints"
+        "task scope and current source"
       ],
       "outputs": [
-        "scoped implementation and relevant verification"
+        "candidate instructions; review before execution"
       ],
-      "notFor": [
-        "generic backend testing",
-        "non-animation architecture"
-      ],
+      "notFor": [],
       "declaration": {
-        "source": "profile-overrides.json",
-        "status": "declared"
+        "source": "skill-metadata",
+        "status": "needs-review"
       },
-      "review": null,
-      "phases": [
-        "implementation"
-      ]
+      "review": null
     },
     {
       "dir": "animate-expo",
@@ -76,6 +70,36 @@
       "phases": [
         "implementation"
       ]
+    },
+    {
+      "dir": "animation-performance",
+      "file": "animation-performance/SKILL.md",
+      "name": "animation-performance",
+      "sha256": "6c60f45ab416ff3f7d7765a5427beead77fab0d82487fe610d2a298397558d0a",
+      "version": "14a54a800075a601a586640dbb75347109eafc7bb35b610f2a8becf91139d76e",
+      "needs": [
+        "frontend",
+        "performance"
+      ],
+      "domains": [
+        "web-animation",
+        "web-ui"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "unspecified",
+      "inputs": [
+        "task scope and current source"
+      ],
+      "outputs": [
+        "candidate instructions; review before execution"
+      ],
+      "notFor": [],
+      "declaration": {
+        "source": "skill-metadata",
+        "status": "declared"
+      },
+      "review": null
     },
     {
       "dir": "animation-vocabulary",
@@ -248,6 +272,36 @@
       ]
     },
     {
+      "dir": "break-ui",
+      "file": "break-ui/SKILL.md",
+      "name": "break-ui",
+      "sha256": "e7eec1d70ac56a04255e9c0dbe98084ea3d544cc04aaad34f32c95d6fa9dff5e",
+      "version": "ab3b361934a1d2fffd8c76276e72445d930ca3c57436114206142ce6bae119de",
+      "needs": [
+        "frontend",
+        "testing"
+      ],
+      "domains": [
+        "web-animation",
+        "web-ui"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "unspecified",
+      "inputs": [
+        "task scope and current source"
+      ],
+      "outputs": [
+        "candidate instructions; review before execution"
+      ],
+      "notFor": [],
+      "declaration": {
+        "source": "skill-metadata",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
       "dir": "database-design",
       "file": "database-design/SKILL.md",
       "name": "database-design",
@@ -321,33 +375,28 @@
       "dir": "emil-design-eng",
       "file": "emil-design-eng/SKILL.md",
       "name": "emil-design-eng",
-      "sha256": "ffbe68e6007fb42cb8149f089b400a1ca007d59ba23e8948e2be4476f3175939",
-      "version": "21dfe7b37b8cf5fe5eea0c9ea4f391cb04f3fb19d2743d8581b44a64dd8eb633",
+      "sha256": "965cc3108047a1f68e504977ae7816c66115b202a32e7509c0b8305314839c54",
+      "version": "9ad1a1370669351e8bdd66007472180cbd34229489574e8758bec831e93893d0",
       "needs": [
-        "frontend",
-        "product"
+        "frontend"
       ],
       "domains": [
-        "web-ui",
-        "web-animation"
+        "web-animation",
+        "web-ui"
       ],
       "excludeDomains": [],
       "explicitOnly": false,
-      "access": "write",
+      "access": "unspecified",
       "inputs": [
-        "current task scope",
-        "current source and constraints"
+        "task scope and current source"
       ],
       "outputs": [
-        "scoped implementation and relevant verification"
+        "candidate instructions; review before execution"
       ],
-      "notFor": [
-        "generic backend testing",
-        "non-animation architecture"
-      ],
+      "notFor": [],
       "declaration": {
-        "source": "profile-overrides.json",
-        "status": "declared"
+        "source": "skill-metadata",
+        "status": "needs-review"
       },
       "review": null
     },
@@ -420,6 +469,36 @@
       "review": null
     },
     {
+      "dir": "gestures",
+      "file": "gestures/SKILL.md",
+      "name": "gestures",
+      "sha256": "3301a3528632e7b6e980e79f2708f2faa60340e833ce5816b5b081e8cfe83e7f",
+      "version": "e443db937d85092f55f0be966fd04856263e005bf719dbdf9ed41e19d515ba60",
+      "needs": [
+        "deployment"
+      ],
+      "domains": [
+        "deployment",
+        "toasts",
+        "web-animation"
+      ],
+      "excludeDomains": [],
+      "explicitOnly": false,
+      "access": "unspecified",
+      "inputs": [
+        "task scope and current source"
+      ],
+      "outputs": [
+        "candidate instructions; review before execution"
+      ],
+      "notFor": [],
+      "declaration": {
+        "source": "skill-metadata",
+        "status": "declared"
+      },
+      "review": null
+    },
+    {
       "dir": "humanizer",
       "file": "humanizer/SKILL.md",
       "name": "humanizer",
@@ -452,7 +531,7 @@
       "file": "improve-animations/SKILL.md",
       "name": "improve-animations",
       "sha256": "73962447464433476343e2c12cd08ab39cc99a9e5f3c118c5fb54ed897574ef6",
-      "version": "05de74e7bc0fb8b47a0a98a997da41234851893917f1ec2bc33d64bfd458c9dc",
+      "version": "1c72333e8d97685d248a66b389e7d7db0e5410353c867aa522062b44b94ba803",
       "needs": [
         "frontend",
         "testing",
@@ -638,32 +717,25 @@
       "dir": "review-animations",
       "file": "review-animations/SKILL.md",
       "name": "review-animations",
-      "sha256": "6ff590d29e436766135aa3d137be1fac2a867165c7257fc315b189361f1873af",
-      "version": "18764bacc9807b1128bba03f02b4547afc457f1cfe6b0dd1cd03f0f7fcbfea35",
-      "needs": [
-        "frontend",
-        "testing"
-      ],
+      "sha256": "5f9fb98b69cace7107af8b393a4196fd42fa42d98bce0e5afc1f866ff3b8a41c",
+      "version": "c8486b87be95c8f226155fa81f716fa8f960431ac5b8a35ccafb7d1cc3e6f875",
+      "needs": [],
       "domains": [
         "web-animation"
       ],
       "excludeDomains": [],
       "explicitOnly": false,
-      "access": "read",
+      "access": "unspecified",
       "inputs": [
-        "current task scope",
-        "current source and constraints"
+        "task scope and current source"
       ],
       "outputs": [
-        "evidence-based report or recommendation"
+        "candidate instructions; review before execution"
       ],
-      "notFor": [
-        "generic backend testing",
-        "non-animation architecture"
-      ],
+      "notFor": [],
       "declaration": {
-        "source": "profile-overrides.json",
-        "status": "declared"
+        "source": "skill-metadata",
+        "status": "needs-review"
       },
       "review": null
     },
